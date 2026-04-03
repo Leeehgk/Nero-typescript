@@ -1,3 +1,4 @@
+/// Nero: um avatar 3D que fala com LLMs locais ou na nuvem (Groq).
 import { useCallback, useEffect, useState } from "react";
 import { OfficeScene } from "./components/OfficeScene";
 import { useNeroStore, type LlmProvider } from "./store";
