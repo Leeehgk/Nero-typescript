@@ -62,6 +62,8 @@ export function App() {
   const setLastReply = useNeroStore((s) => s.setLastReply);
   const lastReply = useNeroStore((s) => s.lastReply);
   const mood = useNeroStore((s) => s.mood);
+  const agentTarget = useNeroStore((s) => s.agentTarget);
+  const agentDebug = useNeroStore((s) => s.agentDebug);
   const llmProvider = useNeroStore((s) => s.llmProvider);
   const setLlmProvider = useNeroStore((s) => s.setLlmProvider);
   const localModel = useNeroStore((s) => s.localModel);
@@ -202,6 +204,54 @@ export function App() {
           </div>
         </div>
       )}
+      <div
+        style={{
+          position: "absolute",
+          right: 16,
+          top: 16,
+          width: 220,
+          padding: "10px 12px",
+          borderRadius: 12,
+          background: "rgba(20, 28, 26, 0.82)",
+          color: "#dff7ec",
+          border: "2px solid rgba(127, 217, 184, 0.5)",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.2)",
+          fontSize: 14,
+          lineHeight: 1.35,
+          pointerEvents: "none",
+          zIndex: 4,
+        }}
+      >
+        <div style={{ fontSize: 16, marginBottom: 6, color: "#7fd9b8" }}>Debug Movimento</div>
+        <div>mood global: <strong>{mood}</strong></div>
+        <div>
+          alvo store: <strong>{agentTarget.x}, {agentTarget.z}</strong>
+        </div>
+        <div>
+          pos avatar:{" "}
+          <strong>
+            {agentDebug ? `${agentDebug.position.x}, ${agentDebug.position.z}` : "sem dados"}
+          </strong>
+        </div>
+        <div>
+          alvo interno:{" "}
+          <strong>
+            {agentDebug ? `${agentDebug.internalTarget.x}, ${agentDebug.internalTarget.z}` : "sem dados"}
+          </strong>
+        </div>
+        <div>
+          andando: <strong>{agentDebug ? (agentDebug.walking ? "sim" : "nao") : "?"}</strong>
+        </div>
+        <div>
+          mood avatar: <strong>{agentDebug?.mood ?? "sem dados"}</strong>
+        </div>
+        <div>
+          atualizacao:{" "}
+          <strong>
+            {agentDebug ? `${Math.max(0, Math.round((Date.now() - agentDebug.updatedAt) / 100) / 10)}s` : "sem dados"}
+          </strong>
+        </div>
+      </div>
       <div
         style={{
           position: "absolute",

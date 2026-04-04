@@ -7,6 +7,14 @@ export type LlmProvider = "local" | "groq";
 
 /** Casa no piso (-5…5) — estilo Habbo por azulejo. */
 export type AgentGrid = { x: number; z: number };
+export type AgentDebug = {
+  position: { x: number; z: number };
+  internalTarget: AgentGrid;
+  storeTarget: AgentGrid;
+  walking: boolean;
+  mood: AgentMood;
+  updatedAt: number;
+};
 
 const GRID = { min: -5, max: 5 } as const;
 
@@ -26,8 +34,10 @@ type Store = {
   groqModel: string;
   /** Destino de movimento (centro do azulejo). */
   agentTarget: AgentGrid;
+  agentDebug: AgentDebug | null;
   setAgentTarget: (x: number, z: number) => void;
   nudgeAgent: (dx: number, dz: number) => void;
+  setAgentDebug: (debug: AgentDebug) => void;
   setMood: (m: AgentMood) => void;
   setLastReply: (s: string) => void;
   setLlmProvider: (p: LlmProvider) => void;
@@ -44,11 +54,13 @@ export const useNeroStore = create<Store>()(
       localModel: "",
       groqModel: "",
       agentTarget: { x: 1, z: 1 },
+      agentDebug: null,
       setAgentTarget: (x, z) => set({ agentTarget: clampGrid(x, z) }),
       nudgeAgent: (dx, dz) => {
         const { x, z } = get().agentTarget;
         set({ agentTarget: clampGrid(x + dx, z + dz) });
       },
+      setAgentDebug: (agentDebug) => set({ agentDebug }),
       setMood: (mood) => set({ mood }),
       setLastReply: (lastReply) => set({ lastReply }),
       setLlmProvider: (llmProvider) => set({ llmProvider }),

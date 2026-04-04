@@ -179,7 +179,7 @@ function HabboOfficeFurniture() {
 
 export function OfficeScene() {
   return (
-    <Canvas shadows dpr={[1, 2]} gl={{ antialias: true }} style={{ cursor: "crosshair" }}>
+    <Canvas frameloop="always" shadows dpr={[1, 2]} gl={{ antialias: true }} style={{ cursor: "crosshair" }}>
       <HabboSky />
       <OrthographicCamera makeDefault position={[18, 16, 18]} zoom={34} near={0.1} far={120} />
       <CameraIso />

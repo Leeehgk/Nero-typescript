@@ -75,10 +75,12 @@ export function PixelAgent() {
   const lastExternalTargetRef = useRef<GridPoint>({ x: initialTarget.x, z: initialTarget.z });
   const facingRef = useRef(INITIAL_FACING_Y);
   const nextWanderAtRef = useRef(0);
+  const lastDebugSyncAtRef = useRef(0);
 
-  useFrame((state) => {
+  const setAgentDebug = useNeroStore((s) => s.setAgentDebug);
+
+  useFrame((state, dt) => {
     const t = state.clock.elapsedTime;
-    const dt = state.clock.getDelta();
     const { mood, agentTarget } = useNeroStore.getState();
     const params = moodParams(mood);
 
@@ -138,6 +140,21 @@ export function PixelAgent() {
     if (armR.current) {
       const amp = walking ? 0.38 : params.arm;
       armR.current.rotation.x = -Math.sin(t * (walking ? 12 : params.idleSpeed * 1.05)) * amp * 0.95;
+    }
+
+    if (t - lastDebugSyncAtRef.current > 0.12) {
+      lastDebugSyncAtRef.current = t;
+      setAgentDebug({
+        position: {
+          x: Number(posRef.current.x.toFixed(2)),
+          z: Number(posRef.current.z.toFixed(2)),
+        },
+        internalTarget: { ...targetRef.current },
+        storeTarget: { ...agentTarget },
+        walking,
+        mood,
+        updatedAt: Date.now(),
+      });
     }
   });
 
