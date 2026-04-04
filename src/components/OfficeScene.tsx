@@ -15,7 +15,6 @@ function HabboSky() {
   return null;
 }
 
-/** Vista isométrica fixa (tipo Habbo): câmara olha para o centro do quarto. */
 function CameraIso() {
   const { camera } = useThree();
   useLayoutEffect(() => {
@@ -26,19 +25,13 @@ function CameraIso() {
   return null;
 }
 
-/** Xadrez bege / castanho como referência Habbo. */
 function HabboFloor() {
   const tiles: ReactNode[] = [];
   for (let x = -5; x <= 5; x++) {
     for (let z = -5; z <= 5; z++) {
       const c = (x + z) % 2 === 0 ? "#e8dcc8" : "#b8956a";
       tiles.push(
-        <mesh
-          key={`${x}-${z}`}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[x, 0, z]}
-          receiveShadow
-        >
+        <mesh key={`${x}-${z}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0, z]} receiveShadow>
           <planeGeometry args={[1, 1]} />
           <meshStandardMaterial color={c} roughness={0.92} metalness={0.02} />
         </mesh>
@@ -48,7 +41,6 @@ function HabboFloor() {
   return <group>{tiles}</group>;
 }
 
-/** Clique no chão — move o Nero para o azulejo mais próximo. */
 function FloorClickNav() {
   const setAgentTarget = useNeroStore((s) => s.setAgentTarget);
 

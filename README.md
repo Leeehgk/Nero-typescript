@@ -1,53 +1,53 @@
-# 🤖 Nero Agent — Assistente Pessoal de IA por Voz
+# 🤖 Nero Agent (TypeScript) — Assistente Pessoal de IA por Voz
 
-Assistente pessoal de IA ativado por voz, com **inteligência autônoma** via Groq (Llama 3.1 8B), **memória de longo prazo** e **12 ferramentas** que ele decide sozinho quando usar.
+Assistente pessoal de IA ativado por voz, com **inteligência autônoma** via Groq (Llama 3.1 8B), **memória de longo prazo** e **ferramentas** que ele decide sozinho quando usar. Construído com TypeScript, React (Vite) e Node.js (Express).
 
-> Fala Português do Brasil 🇧🇷 · Voz neural Edge TTS · Roda 100% local no Windows
+> Fala Português do Brasil 🇧🇷 · Voz neural Edge TTS · Roda no Windows.
 
 ---
 
 ## ✨ Funcionalidades
 
 ### 🧠 Inteligência
-- **Groq + Function Calling** — O LLM analisa o que você diz e decide sozinho se precisa executar uma ação ou apenas conversar
-- **Memória de longo prazo** — Aprende fatos sobre você (nome, preferências, hábitos) e lembra entre sessões
-- **Memória de curto prazo** — Histórico das últimas 30 mensagens persistido em JSON
-- **Aprendizado contínuo** — Após cada conversa, o Groq extrai automaticamente novos fatos sobre você
+- **LLM Dual**: Alterne facilmente entre um LLM rodando localmente (via LM Studio, Ollama, etc.) e a API de alta velocidade da Groq na nuvem.
+- **Function Calling**: O LLM analisa o que você diz e decide de forma autônoma se precisa usar uma ferramenta (como pesquisar na web) ou apenas conversar.
+- **Memória de Longo Prazo**: Aprende fatos sobre você (nome, preferências, hábitos) e os armazena em `perfil_nero.json` para lembrar entre sessões.
+- **Memória de Curto Prazo**: Mantém o histórico das últimas conversas em `memoria_nero.json` para dar contexto ao diálogo.
+- **Aprendizado Contínuo**: Após cada interação, um LLM em segundo plano analisa a conversa para extrair e salvar novos fatos sobre você.
 
 ### 🎤 Voz
-- **Wake Word** — Diga "Nero" para ativar (com variações de pronúncia)
-- **TTS Edge Neural** — Voz natural em Português (`pt-BR-AntonioNeural`)
-- **Interrupção por voz** — Fale durante a resposta para interromper imediatamente
-- **Microfone persistente** — Zero latência de hardware (mic aberto durante toda a sessão)
+- **Conversa por Voz**: Use a voz para interagir com o Nero, com reconhecimento de fala diretamente no navegador (Chrome/Edge).
+- **Wake Word**: Diga "Nero" para ativar o assistente quando ele estiver em modo de espera.
+- **TTS Neural via Servidor**: As respostas são convertidas em áudio com uma voz natural (`pt-BR-AntonioNeural`) através do backend, garantindo consistência.
+- **Interrupção por Voz**: Você pode falar a qualquer momento para interromper a resposta do Nero.
 
-### 🛠️ 12 Ferramentas Autônomas
+### 🛠️ Ferramentas Autônomas
 
 O Nero decide sozinho quando usar cada ferramenta:
 
 | Ferramenta | Comando exemplo |
 |------------|----------------|
-| 🎵 Tocar no YouTube | *"toca Red Hot no YouTube"* |
-| ⏯️ Controlar Mídia | *"pausa a música"* / *"próxima faixa"* |
-| 🔊 Alterar Volume | *"aumenta o volume"* / *"mutar"* |
-| 💻 Abrir Programa | *"abre a calculadora"* |
+| 🎵 Tocar no YouTube | *"toca o último álbum do The Killers no YouTube"* |
+| ⏯️ Controlar Mídia | *"pausa a música"* / *"próxima faixa"* / *"volta uma música"* |
+| 🔊 Alterar Volume | *"aumenta o volume para 80%"* / *"mutar"* |
+| 💻 Abrir Programa | *"abre a calculadora"* / *"inicia o VS Code"* |
 | ❌ Fechar Programa | *"fecha o bloco de notas"* |
 | 📰 Notícias do Dia | *"quais são as notícias de hoje?"* |
-|  Data e Hora | *"que horas são?"* / *"que dia é hoje?"* |
+| 🗓️ Data e Hora | *"que horas são?"* / *"que dia é hoje?"* |
 | 🌤️ Clima | *"como está o clima em São Paulo?"* |
-| 🔍 Pesquisa Web | *"pesquisa sobre inteligência artificial"* |
+| 🔍 Pesquisa Web | *"pesquisa sobre a história da computação"* |
 | 🌐 Abrir Navegador | *"abre o GitHub"* |
-| 📸 Capturar Tela | *"tira um print"* |
-| 📝 Criar Anotação | *"anota: reunião às 15h"* |
+| 📸 Capturar Tela | *"tira um print da tela toda"* |
+| 📝 Criar Anotação | *"anota aí: comprar pão e leite amanhã"* |
 
 ### 🗣️ Comandos de Controle por Voz
 
 | Comando | Ação |
 |---------|------|
 | *"Nero"* | Ativa o assistente (wake word) |
-| *"vai descansar"* | Volta ao stand-by |
-| *"desligar sistema"* | Encerra o programa |
+| *"vai descansar"* | Coloca o Nero em modo de espera (stand-by) |
 | *"o que você sabe sobre mim?"* | Lista fatos aprendidos |
-| *"limpa a memória"* / *"esquece tudo"* | Reseta memória completa |
+| *"limpa a memória"* / *"esquece tudo"* | Apaga as memórias de curto e longo prazo |
 
 ---
 

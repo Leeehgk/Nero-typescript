@@ -1,6 +1,22 @@
 import { cleanTextForSpeech } from "./cleanText";
 
 let voicesReady = false;
+let currentAudio: HTMLAudioElement | null = null;
+let currentFetchAbort: AbortController | null = null;
+let speakSession = 0;
+
+function stopCurrentPlayback(): void {
+  currentFetchAbort?.abort();
+  currentFetchAbort = null;
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    speechSynthesis.cancel();
+  }
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.src = "";
+    currentAudio = null;
+  }
+}
 
 function ensureVoices(): Promise<void> {
   if (typeof window === "undefined" || !window.speechSynthesis) {
@@ -39,17 +55,9 @@ function pickBestPtBrVoice(): SpeechSynthesisVoice | null {
   return pool.reduce((best, v) => (score(v) > score(best) ? v : best), pool[0]!);
 }
 
-let currentAudio: HTMLAudioElement | null = null;
-
 export function cancelSpeech(): void {
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    speechSynthesis.cancel();
-  }
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.src = "";
-    currentAudio = null;
-  }
+  speakSession += 1;
+  stopCurrentPlayback();
 }
 
 /** Fallback: motor do browser com afinação mais natural. */
@@ -79,28 +87,41 @@ export function speakText(text: string): Promise<void> {
   if (!cleaned) return Promise.resolve();
 
   return (async () => {
+    const session = ++speakSession;
+    stopCurrentPlayback();
     try {
+      const controller = new AbortController();
+      currentFetchAbort = controller;
       const r = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: cleaned }),
+        signal: controller.signal,
       });
       if (!r.ok) throw new Error(`tts ${r.status}`);
       const blob = await r.blob();
+      if (session !== speakSession) return;
+      if (!blob.size || !blob.type.startsWith("audio/")) {
+        throw new Error("tts sem audio");
+      }
       const url = URL.createObjectURL(blob);
       await new Promise<void>((resolve) => {
         const a = new Audio(url);
         currentAudio = a;
+        a.preload = "auto";
         const done = () => {
           URL.revokeObjectURL(url);
           if (currentAudio === a) currentAudio = null;
+          if (currentFetchAbort === controller) currentFetchAbort = null;
           resolve();
         };
         a.onended = done;
         a.onerror = done;
         void a.play().catch(done);
       });
-    } catch {
+    } catch (error) {
+      if (session !== speakSession) return;
+      if (error instanceof DOMException && error.name === "AbortError") return;
       await speakTextBrowser(cleaned);
     }
   })();

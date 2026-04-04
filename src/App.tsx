@@ -1,8 +1,54 @@
 /// Nero: um avatar 3D que fala com LLMs locais ou na nuvem (Groq).
-import { useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { OfficeScene } from "./components/OfficeScene";
 import { useNeroStore, type LlmProvider } from "./store";
 import { useNeroVoiceConversation } from "./voice/useNeroVoiceConversation";
+
+type ErrorBoundaryProps = {
+  children: ReactNode;
+};
+
+type ErrorBoundaryState = {
+  hasError: boolean;
+};
+
+class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Falha de renderizacao capturada:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            background: "linear-gradient(180deg, #f7f1e8 0%, #dcefe5 100%)",
+            color: "#2d4a3e",
+            fontFamily: '"VT323", "Segoe UI", system-ui, sans-serif',
+            textAlign: "center",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 34, marginBottom: 10 }}>Nero encontrou um erro visual.</div>
+            <div style={{ fontSize: 22 }}>A interface foi preservada. Recarregue a pagina se a cena 3D nao voltar.</div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export function App() {
   const [input, setInput] = useState("");
@@ -25,6 +71,12 @@ export function App() {
 
   const { phase: voicePhase, subtitle, voiceError, startVoice, stopVoice } = useNeroVoiceConversation();
 
+  const bubbleText = (() => {
+    const text = lastReply.trim();
+    if (!text) return "";
+    return text.length <= 140 ? text : `${text.slice(0, 139)}...`;
+  })();
+
   useEffect(() => {
     void fetch("/api/config")
       .then((r) => r.json())
@@ -38,6 +90,22 @@ export function App() {
       )
       .catch(() => setApiCfg({}));
   }, []);
+
+  useEffect(() => {
+    // Efeito para retornar ao estado 'idle' após um tempo.
+    // Isso centraliza a lógica, evita múltiplos `setTimeout` e é mais seguro.
+    // O 'mood' é o gatilho perfeito para as animações do personagem na OfficeScene.
+    // - "thinking": Correr para o computador.
+    // - "speaking": Animação de fala.
+    // - "idle": Movimentação aleatória pelo cenário.
+    if (mood === "speaking" || mood === "success" || mood === "error") {
+      const timer = setTimeout(() => {
+        setMood("idle");
+      }, 4000); // Tempo estendido para dar espaço para animações e falas.
+
+      return () => clearTimeout(timer); // Limpa o timer se o humor mudar ou o componente desmontar.
+    }
+  }, [mood, setMood]);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -55,30 +123,41 @@ export function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = (await r.json()) as {
-        reply?: string;
-        agentState?: string;
-        error?: string;
-      };
-      const reply = data.reply ?? data.error ?? "Sem resposta.";
+
+      // Validação robusta da resposta para evitar a "tela branca" por JSON malformado.
+      const responseText = await r.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Falha ao parsear JSON da resposta:", responseText);
+        throw new Error(`O servidor respondeu com um formato inesperado. Resposta: ${responseText.slice(0, 200)}`);
+      }
+
+      if (typeof data !== "object" || !data) {
+        throw new Error("Resposta da API em formato inválido (não é um objeto).");
+      }
+
+      const typedData = data as { reply?: string; agentState?: string; error?: string };
+      const reply = typedData.reply ?? typedData.error ?? "Sem resposta.";
       setLastReply(reply);
 
       if (r.ok) {
-        const st = data.agentState;
+        const st = typedData.agentState;
         if (st === "error") setMood("error");
         else if (st === "success") setMood("success");
         else setMood("speaking");
       } else {
         setMood("error");
       }
-
-      window.setTimeout(() => {
-        useNeroStore.getState().setMood("idle");
-      }, 2200);
-    } catch {
+    } catch (err) {
+      console.error("Erro ao enviar mensagem:", err);
       setMood("error");
-      setLastReply("Não consegui falar com o servidor. O LM Studio está em http://127.0.0.1:1234 ?");
-      window.setTimeout(() => useNeroStore.getState().setMood("idle"), 2500);
+      setLastReply(
+        err instanceof Error
+          ? `Erro: ${err.message}`
+          : "Não consegui falar com o servidor. Verifique o console."
+      );
     }
   }, [input, llmProvider, localModel, groqModel, setLastReply, setMood]);
 
@@ -91,7 +170,38 @@ export function App() {
         fontFamily: '"VT323", "Segoe UI", system-ui, sans-serif',
       }}
     >
-      <OfficeScene />
+      <AppErrorBoundary>
+        <OfficeScene />
+      </AppErrorBoundary>
+      {bubbleText && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 26,
+            transform: "translateX(-50%)",
+            width: "min(420px, calc(100vw - 32px))",
+            pointerEvents: "none",
+            zIndex: 3,
+          }}
+        >
+          <div
+            style={{
+              background: "rgba(255,255,255,0.96)",
+              border: "3px solid #2d6b56",
+              borderRadius: 12,
+              padding: "10px 12px",
+              fontSize: 18,
+              lineHeight: 1.25,
+              color: "#1a3d32",
+              textAlign: "center",
+              boxShadow: "3px 4px 0 rgba(0,0,0,0.15)",
+            }}
+          >
+            {bubbleText}
+          </div>
+        </div>
+      )}
       <div
         style={{
           position: "absolute",
@@ -119,6 +229,14 @@ export function App() {
             boxShadow: "4px 6px 0 #3d8b72, 8px 12px 24px rgba(0,0,0,0.2)",
           }}
         >
+          {/*
+            COMO USAR O 'MOOD' PARA ANIMAÇÕES NA OfficeScene.tsx:
+            1. Dentro de OfficeScene, use o hook da store: `const mood = useNeroStore(s => s.mood);`
+            2. Use um `useEffect` para observar as mudanças no `mood`: `useEffect(() => { ... }, [mood]);`
+            3. Dentro do `useEffect`, dispare a animação correspondente:
+               - if (mood === 'thinking') { // lógica para correr para o computador }
+               - if (mood === 'idle') { // lógica para andar aleatoriamente }
+          */}
           <div
             style={{
               display: "flex",

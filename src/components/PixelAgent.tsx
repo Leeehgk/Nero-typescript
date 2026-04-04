@@ -1,83 +1,143 @@
 import { useRef } from "react";
-import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { MathUtils } from "three";
 import type { Group } from "three";
 import { useNeroStore, type AgentMood } from "../store";
+
+type GridPoint = { x: number; z: number };
+
+const GRID_MIN = -5;
+const GRID_MAX = 5;
+const INITIAL_FACING_Y = Math.PI * 0.25;
+const WALK_SPEED = 4.9;
+const ROTATION_SPEED = 9;
+
+function clampTile(v: number): number {
+  return Math.max(GRID_MIN, Math.min(GRID_MAX, Math.round(v)));
+}
+
+function samePoint(a: GridPoint, b: GridPoint): boolean {
+  return a.x === b.x && a.z === b.z;
+}
+
+function faceAngle(dx: number, dz: number): number {
+  return Math.atan2(dx, dz);
+}
+
+function dampAngle(current: number, target: number, dt: number): number {
+  const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  const step = 1 - Math.exp(-ROTATION_SPEED * dt);
+  return current + delta * step;
+}
 
 function moodParams(mood: AgentMood) {
   switch (mood) {
     case "thinking":
-      return { bob: 0.06, arm: 0.55, rot: 0.06, speed: 4 };
+      return { bob: 0.05, arm: 0.34, idleSpeed: 3.8 };
     case "speaking":
-      return { bob: 0.1, arm: 0.28, rot: 0.03, speed: 7 };
+      return { bob: 0.075, arm: 0.2, idleSpeed: 6.5 };
     case "success":
-      return { bob: 0.12, arm: 0.18, rot: 0.1, speed: 5 };
+      return { bob: 0.09, arm: 0.14, idleSpeed: 5.1 };
     case "error":
-      return { bob: 0.05, arm: 0.35, rot: -0.05, speed: 3 };
+      return { bob: 0.045, arm: 0.24, idleSpeed: 2.8 };
     case "listening":
-      return { bob: 0.035, arm: 0.12, rot: 0.04, speed: 2 };
+      return { bob: 0.03, arm: 0.12, idleSpeed: 2.4 };
     default:
-      return { bob: 0.04, arm: 0.08, rot: 0.015, speed: 1.5 };
+      return { bob: 0.035, arm: 0.08, idleSpeed: 1.5 };
   }
 }
 
-function truncate(s: string, n: number): string {
-  if (!s) return "";
-  return s.length <= n ? s : `${s.slice(0, n - 1)}…`;
+function pickRandomTarget(from: GridPoint): GridPoint {
+  for (let i = 0; i < 12; i++) {
+    const dx = Math.floor(Math.random() * 5) - 2;
+    const dz = Math.floor(Math.random() * 5) - 2;
+    if (dx === 0 && dz === 0) continue;
+    const next = {
+      x: clampTile(from.x + dx),
+      z: clampTile(from.z + dz),
+    };
+    if (!samePoint(next, from)) return next;
+  }
+
+  return {
+    x: clampTile(from.x + 1),
+    z: from.z,
+  };
 }
 
-/** Avatar isométrico Habbo — locomove-se entre azulejos; balão de fala opcional. */
 export function PixelAgent() {
   const group = useRef<Group>(null);
   const armL = useRef<Group>(null);
   const armR = useRef<Group>(null);
-  const curX = useRef(useNeroStore.getState().agentTarget.x);
-  const curZ = useRef(useNeroStore.getState().agentTarget.z);
-  const lastFacing = useRef(Math.PI * 0.25);
 
-  const mood = useNeroStore((s) => s.mood);
-  const agentTarget = useNeroStore((s) => s.agentTarget);
-  const lastReply = useNeroStore((s) => s.lastReply);
+  const initialTarget = useNeroStore.getState().agentTarget;
+  const posRef = useRef<GridPoint>({ x: initialTarget.x, z: initialTarget.z });
+  const targetRef = useRef<GridPoint>(pickRandomTarget(initialTarget));
+  const lastExternalTargetRef = useRef<GridPoint>({ x: initialTarget.x, z: initialTarget.z });
+  const facingRef = useRef(INITIAL_FACING_Y);
+  const nextWanderAtRef = useRef(0);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const dt = state.clock.getDelta();
-    const p = moodParams(mood);
+    const { mood, agentTarget } = useNeroStore.getState();
+    const params = moodParams(mood);
 
-    const tx = agentTarget.x;
-    const tz = agentTarget.z;
-    const k = 1 - Math.exp(-12 * dt);
-    curX.current = MathUtils.lerp(curX.current, tx, k);
-    curZ.current = MathUtils.lerp(curZ.current, tz, k);
-
-    const dx = tx - curX.current;
-    const dz = tz - curZ.current;
-    const dist = Math.hypot(dx, dz);
-    const walking = dist > 0.025;
-
-    if (walking) {
-      lastFacing.current = Math.atan2(dx, dz);
+    if (!samePoint(agentTarget, lastExternalTargetRef.current)) {
+      lastExternalTargetRef.current = { ...agentTarget };
+      targetRef.current = { ...agentTarget };
+      nextWanderAtRef.current = t + 0.8;
     }
 
+    const roundedPos = {
+      x: clampTile(posRef.current.x),
+      z: clampTile(posRef.current.z),
+    };
+
+    const dxToTarget = targetRef.current.x - posRef.current.x;
+    const dzToTarget = targetRef.current.z - posRef.current.z;
+    const distToTarget = Math.hypot(dxToTarget, dzToTarget);
+    const reachedTarget = distToTarget < 0.04;
+
+    if (reachedTarget && t >= nextWanderAtRef.current) {
+      targetRef.current = pickRandomTarget(roundedPos);
+      nextWanderAtRef.current = t + 1.3 + Math.random() * 1.6;
+    }
+
+    const moveDx = targetRef.current.x - posRef.current.x;
+    const moveDz = targetRef.current.z - posRef.current.z;
+    const moveDist = Math.hypot(moveDx, moveDz);
+
+    let walking = false;
+    if (moveDist > 0.01) {
+      const slowFactor = Math.max(0.4, Math.min(1, moveDist / 0.85));
+      const step = Math.min(moveDist, WALK_SPEED * slowFactor * dt);
+      posRef.current.x += (moveDx / moveDist) * step;
+      posRef.current.z += (moveDz / moveDist) * step;
+      walking = step > 0.0005;
+      if (walking) {
+        facingRef.current = faceAngle(moveDx, moveDz);
+      }
+    }
+
+    const targetRotation = walking
+      ? facingRef.current
+      : facingRef.current + Math.sin(t * 0.7) * 0.04;
+    facingRef.current = dampAngle(facingRef.current, targetRotation, dt);
+
     if (group.current) {
-      group.current.position.x = curX.current;
-      group.current.position.z = curZ.current;
-
-      const walkBob = walking ? Math.sin(t * 14) * 0.07 : 0;
-      const idleBob = walking ? 0 : Math.sin(t * p.speed) * p.bob;
-      group.current.position.y = 0.72 + walkBob + idleBob;
-
-      group.current.rotation.y = walking ? lastFacing.current : lastFacing.current + Math.sin(t * 0.8) * p.rot * 0.5;
+      const walkBob = walking ? Math.sin(t * 13.5) * 0.075 : 0;
+      const idleBob = walking ? 0 : Math.sin(t * params.idleSpeed) * params.bob;
+      group.current.position.set(posRef.current.x, 0.72 + walkBob + idleBob, posRef.current.z);
+      group.current.rotation.y = facingRef.current;
     }
 
     if (armL.current) {
-      const amp = walking ? 0.45 : p.arm;
-      armL.current.rotation.x = Math.sin(t * (walking ? 16 : p.speed * 1.15)) * amp;
+      const amp = walking ? 0.42 : params.arm;
+      armL.current.rotation.x = Math.sin(t * (walking ? 13 : params.idleSpeed * 1.15)) * amp;
     }
     if (armR.current) {
-      const amp = walking ? 0.4 : p.arm;
-      armR.current.rotation.x = -Math.sin(t * (walking ? 15 : p.speed * 1.05)) * amp * 0.85;
+      const amp = walking ? 0.38 : params.arm;
+      armR.current.rotation.x = -Math.sin(t * (walking ? 12 : params.idleSpeed * 1.05)) * amp * 0.95;
     }
   });
 
@@ -88,31 +148,8 @@ export function PixelAgent() {
   const hair = "#f4d35e";
   const shoe = "#4a4a55";
 
-  const bubbleText = truncate(lastReply.trim(), 100);
-
   return (
-    <group ref={group} position={[1, 0.72, 1]} scale={1.08}>
-      <Html position={[0, 1.45, 0]} center distanceFactor={10} style={{ pointerEvents: "none", width: 220 }}>
-        {bubbleText ? (
-          <div
-            style={{
-              background: "rgba(255,255,255,0.96)",
-              border: "3px solid #2d6b56",
-              borderRadius: 12,
-              padding: "8px 10px",
-              fontFamily: '"VT323", monospace',
-              fontSize: 16,
-              lineHeight: 1.25,
-              color: "#1a3d32",
-              boxShadow: "3px 4px 0 rgba(0,0,0,0.15)",
-              textAlign: "center",
-            }}
-          >
-            {bubbleText}
-          </div>
-        ) : null}
-      </Html>
-
+    <group ref={group} position={[initialTarget.x, 0.72, initialTarget.z]} scale={1.08}>
       <mesh position={[-0.11, -0.02, 0.06]} castShadow>
         <boxGeometry args={[0.2, 0.12, 0.26]} />
         <meshStandardMaterial color={shoe} roughness={0.7} />

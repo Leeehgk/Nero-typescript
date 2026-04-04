@@ -26,7 +26,15 @@ async function fetchChat(message: string): Promise<{ reply: string; agentState?:
           return JSON.stringify(payload);
         })(),
       });
-      const data = (await r.json()) as { reply?: string; agentState?: string; error?: string };
+
+      const raw = await r.text();
+      let data: { reply?: string; agentState?: string; error?: string };
+      try {
+        data = JSON.parse(raw) as { reply?: string; agentState?: string; error?: string };
+      } catch {
+        throw new Error(`Resposta invalida do servidor: ${raw.slice(0, 200)}`);
+      }
+
       if (!r.ok) throw new Error(data.error ?? data.reply ?? `HTTP ${r.status}`);
       return { reply: data.reply ?? "", agentState: data.agentState };
     } catch (e) {
@@ -39,15 +47,15 @@ async function fetchChat(message: string): Promise<{ reply: string; agentState?:
 
 function isDescansar(text: string): boolean {
   const t = text.toLowerCase();
-  return ["vai descansar", "descansar", "agora não", "pode ir", "modo stand-by", "modo standby"].some((p) =>
-    t.includes(p)
+  return ["vai descansar", "descansar", "agora nao", "agora não", "pode ir", "modo stand-by", "modo standby"].some(
+    (p) => t.includes(p)
   );
 }
 
 function stripWakePrefix(text: string): string {
   let t = text.trim();
   const lower = t.toLowerCase();
-  for (const w of ["nero", "néro", "ô nero", "ei nero"]) {
+  for (const w of ["nero", "nero", "o nero", "ei nero"]) {
     if (lower.startsWith(w + ",") || lower.startsWith(w + " ")) {
       t = t.slice(w.length).replace(/^[, ]+/, "").trim();
       break;
@@ -62,8 +70,9 @@ export function useNeroVoiceConversation() {
   const [subtitle, setSubtitle] = useState("");
 
   const phaseRef = useRef<Phase>("off");
-  /** Voz ligada (evita comparações de tipo estreitas com phase em callbacks async). */
   const voiceEnabledRef = useRef(false);
+  const isHandlingTurnRef = useRef(false);
+  const activeTurnIdRef = useRef(0);
   const standbyRecRef = useRef<SpeechRecognition | null>(null);
   const commandRecRef = useRef<SpeechRecognition | null>(null);
   const interruptRecRef = useRef<SpeechRecognition | null>(null);
@@ -81,7 +90,7 @@ export function useNeroVoiceConversation() {
       try {
         r.stop();
       } catch {
-        /* */
+        /* noop */
       }
     }
     standbyRecRef.current = null;
@@ -95,7 +104,7 @@ export function useNeroVoiceConversation() {
     try {
       interruptRecRef.current?.stop();
     } catch {
-      /* */
+      /* noop */
     }
     const r = new Ctor();
     interruptRecRef.current = r;
@@ -107,58 +116,85 @@ export function useNeroVoiceConversation() {
       try {
         r.stop();
       } catch {
-        /* */
+        /* noop */
       }
     };
     r.onerror = () => {
-      /* */
+      /* noop */
     };
     try {
       r.start();
     } catch {
-      /* */
+      /* noop */
     }
   }, []);
 
   const listenOneCommandRef = useRef<() => void>(() => {});
+  const startStandbyInnerRef = useRef<() => void>(() => {});
+  const restartCommandListenerRef = useRef<number | null>(null);
+
+  const clearRestartCommandTimer = useCallback(() => {
+    if (restartCommandListenerRef.current !== null) {
+      window.clearTimeout(restartCommandListenerRef.current);
+      restartCommandListenerRef.current = null;
+    }
+  }, []);
+
+  const scheduleCommandListenerRestart = useCallback((delayMs = 250) => {
+    clearRestartCommandTimer();
+    restartCommandListenerRef.current = window.setTimeout(() => {
+      restartCommandListenerRef.current = null;
+      if (!voiceEnabledRef.current) return;
+      if (phaseRef.current !== "active_listening") return;
+      if (isHandlingTurnRef.current) return;
+      listenOneCommandRef.current();
+    }, delayMs);
+  }, [clearRestartCommandTimer]);
 
   const handleUserText = useCallback(
     async (text: string) => {
-      if (!text || !voiceEnabledRef.current) return;
+      if (!text || !voiceEnabledRef.current || isHandlingTurnRef.current) return;
 
-      if (isDescansar(text)) {
-        stopAllRecognition();
-        cancelSpeech();
-        setPhase("standby");
-        phaseRef.current = "standby";
-        setMood("idle");
-        setSubtitle("Stand-by. Diga «Nero» para ativar.");
-        await speakText("Combinado. Qualquer coisa é só chamar.");
-        startStandbyInnerRef.current?.();
-        return;
-      }
-
-      setPhase("processing");
-      phaseRef.current = "processing";
-      setMood("thinking");
-      setSubtitle("Pensando…");
+      isHandlingTurnRef.current = true;
+      clearRestartCommandTimer();
+      const turnId = ++activeTurnIdRef.current;
 
       try {
+        if (isDescansar(text)) {
+          stopAllRecognition();
+          cancelSpeech();
+          setPhase("standby");
+          phaseRef.current = "standby";
+          setMood("idle");
+          setSubtitle("Stand-by. Diga 'Nero' para ativar.");
+          await speakText("Combinado. Qualquer coisa e so chamar.");
+          startStandbyInnerRef.current?.();
+          return;
+        }
+
+        setPhase("processing");
+        phaseRef.current = "processing";
+        setMood("thinking");
+        setSubtitle("Pensando...");
+
         const { reply, agentState } = await fetchChat(text);
+        if (turnId !== activeTurnIdRef.current) return;
+
         setLastReply(reply);
         if (agentState === "error") setMood("error");
         else if (agentState === "success") setMood("success");
         else setMood("speaking");
 
-        setSubtitle("Nero responde…");
-
+        setSubtitle("Nero responde...");
         startInterruptListener();
         await speakText(reply);
+        if (turnId !== activeTurnIdRef.current) return;
+
         cancelSpeech();
         try {
           interruptRecRef.current?.stop();
         } catch {
-          /* */
+          /* noop */
         }
         interruptRecRef.current = null;
 
@@ -167,46 +203,50 @@ export function useNeroVoiceConversation() {
         if (voiceEnabledRef.current) {
           setPhase("active_listening");
           phaseRef.current = "active_listening";
-          setSubtitle("Sua vez — fale o próximo comando.");
-          listenOneCommandRef.current();
+          setSubtitle("Sua vez - fale o proximo comando.");
+          scheduleCommandListenerRestart(120);
         }
       } catch (e) {
+        if (turnId !== activeTurnIdRef.current) return;
         const msg = e instanceof Error ? e.message : String(e);
         setVoiceError(msg);
         setMood("error");
-        await speakText(
-          "Tive um problema. Confirme se a API está em execução na porta 8787 e tente de novo."
-        );
+        await speakText("Tive um problema. Confirme se a API esta em execucao na porta 8787 e tente de novo.");
         if (voiceEnabledRef.current) {
           setPhase("active_listening");
           phaseRef.current = "active_listening";
-          listenOneCommandRef.current();
+          scheduleCommandListenerRestart(250);
+        }
+      } finally {
+        if (turnId === activeTurnIdRef.current) {
+          isHandlingTurnRef.current = false;
         }
       }
     },
-    [setLastReply, setMood, startInterruptListener, stopAllRecognition]
+    [clearRestartCommandTimer, scheduleCommandListenerRestart, setLastReply, setMood, startInterruptListener, stopAllRecognition]
   );
 
   const listenOneCommand = useCallback(() => {
     const Ctor = getSpeechRecognition();
     if (!Ctor) {
-      setVoiceError("Reconhecimento de voz não suportado. Use Chrome ou Edge.");
+      setVoiceError("Reconhecimento de voz nao suportado. Use Chrome ou Edge.");
       voiceEnabledRef.current = false;
       setPhase("off");
       return;
     }
 
-    if (!voiceEnabledRef.current) return;
+    if (!voiceEnabledRef.current || isHandlingTurnRef.current) return;
 
     setPhase("active_listening");
     phaseRef.current = "active_listening";
     setMood("listening");
-    setSubtitle("Ouvindo…");
+    setSubtitle("Ouvindo...");
+    clearRestartCommandTimer();
 
     try {
       commandRecRef.current?.stop();
     } catch {
-      /* */
+      /* noop */
     }
 
     const r = new Ctor();
@@ -216,42 +256,40 @@ export function useNeroVoiceConversation() {
     r.interimResults = false;
 
     r.onerror = (ev: SpeechRecognitionErrorEvent) => {
-      const err = ev;
-      if (err.error === "no-speech") {
-        setSubtitle("Não ouvi — tenta de novo.");
-        window.setTimeout(() => {
-          if (voiceEnabledRef.current && phaseRef.current === "active_listening") {
-            listenOneCommandRef.current();
-          }
-        }, 600);
+      if (ev.error === "no-speech") {
+        setSubtitle("Nao ouvi - tenta de novo.");
+        scheduleCommandListenerRestart(600);
         return;
       }
-      if (err.error === "aborted") return;
-      setVoiceError(err.message ?? err.error ?? "Erro no microfone");
+      if (ev.error === "aborted") return;
+      setVoiceError(ev.message ?? ev.error ?? "Erro no microfone");
+      scheduleCommandListenerRestart(800);
     };
 
     r.onresult = (ev: SpeechRecognitionEvent) => {
       if (!ev.results.length) return;
       const raw = ev.results[0][0].transcript.trim();
       const text = stripWakePrefix(raw);
-      setSubtitle(`Você: ${raw}`);
+      setSubtitle(`Voce: ${raw}`);
       void handleUserText(text || raw);
     };
 
     r.onend = () => {
       commandRecRef.current = null;
+      if (voiceEnabledRef.current && phaseRef.current === "active_listening" && !isHandlingTurnRef.current) {
+        scheduleCommandListenerRestart(250);
+      }
     };
 
     try {
       r.start();
     } catch (e) {
       setVoiceError(e instanceof Error ? e.message : String(e));
+      scheduleCommandListenerRestart(800);
     }
-  }, [handleUserText, setMood]);
+  }, [clearRestartCommandTimer, handleUserText, scheduleCommandListenerRestart, setMood]);
 
   listenOneCommandRef.current = listenOneCommand;
-
-  const startStandbyInnerRef = useRef<() => void>(() => {});
 
   const startStandby = useCallback(() => {
     const Ctor = getSpeechRecognition();
@@ -279,11 +317,13 @@ export function useNeroVoiceConversation() {
           try {
             r.stop();
           } catch {
-            /* */
+            /* noop */
           }
           setSubtitle("Acordado! Fala o comando.");
           void speakText("Pode falar.").then(() => {
-            if (voiceEnabledRef.current) listenOneCommandRef.current();
+            if (voiceEnabledRef.current && !isHandlingTurnRef.current) {
+              scheduleCommandListenerRestart(120);
+            }
           });
           break;
         }
@@ -316,25 +356,29 @@ export function useNeroVoiceConversation() {
       return;
     }
     if (!window.isSecureContext && window.location.hostname !== "localhost") {
-      setVoiceError("HTTPS ou localhost necessário para o microfone.");
+      setVoiceError("HTTPS ou localhost necessario para o microfone.");
       return;
     }
     voiceEnabledRef.current = true;
+    isHandlingTurnRef.current = false;
     setPhase("standby");
     phaseRef.current = "standby";
-    setSubtitle("Stand-by. Diga «Nero» para ativar.");
+    setSubtitle("Stand-by. Diga 'Nero' para ativar.");
     startStandby();
   }, [startStandby]);
 
   const stopVoice = useCallback(() => {
     voiceEnabledRef.current = false;
+    isHandlingTurnRef.current = false;
+    activeTurnIdRef.current += 1;
+    clearRestartCommandTimer();
     stopAllRecognition();
     cancelSpeech();
     setPhase("off");
     phaseRef.current = "off";
     setSubtitle("");
     setMood("idle");
-  }, [stopAllRecognition, setMood]);
+  }, [clearRestartCommandTimer, stopAllRecognition, setMood]);
 
   useEffect(() => () => stopVoice(), [stopVoice]);
 

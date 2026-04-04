@@ -41,44 +41,16 @@ export const toolDefinitions = [
     {
         type: "function",
         function: {
-            name: "pausar_youtube",
-            description: "PAUSA música/vídeo (tecla de mídia Play/Pause).",
-            parameters: { type: "object", properties: {} },
-        },
-    },
-    {
-        type: "function",
-        function: {
-            name: "tocar_pausar_midia",
-            description: "Alterna play/pause na mídia atual.",
-            parameters: { type: "object", properties: {} },
-        },
-    },
-    {
-        type: "function",
-        function: {
-            name: "proxima_faixa",
-            description: "Próxima faixa/música.",
-            parameters: { type: "object", properties: {} },
-        },
-    },
-    {
-        type: "function",
-        function: {
-            name: "faixa_anterior",
-            description: "Faixa anterior.",
-            parameters: { type: "object", properties: {} },
-        },
-    },
-    {
-        type: "function",
-        function: {
             name: "controlar_midia",
-            description: "Controla mídia: pausar, tocar, proximo, anterior.",
+            description: "Controla a reprodução de mídia (música/vídeo). Use para tocar/pausar, ou ir para a próxima ou anterior.",
             parameters: {
                 type: "object",
                 properties: {
-                    acao: { type: "string", description: "pausar, tocar, proximo, anterior, etc." },
+                    acao: {
+                        type: "string",
+                        description: "A ação a ser executada.",
+                        enum: ["play_pause", "proximo", "anterior"],
+                    },
                 },
                 required: ["acao"],
             },
@@ -231,36 +203,34 @@ export async function executarFerramenta(name, args) {
     switch (name) {
         case "tocar_youtube": {
             const pesquisa = String(args.pesquisa ?? "");
+            // Tenta encontrar um link de vídeo direto para tocar imediatamente
+            const ddgQuery = `site:youtube.com watch ${pesquisa}`;
+            const videoUrl = await findFirstUrlOnDuckDuckGo(ddgQuery);
+            if (videoUrl && videoUrl.includes("youtube.com/watch")) {
+                await open(videoUrl);
+                return `Tocando '${pesquisa}' no YouTube!`;
+            }
+            // Fallback: se não achar, abre a página de busca como antes
             const q = encodeURIComponent(pesquisa);
             const url = `https://www.youtube.com/results?search_query=${q}`;
             await open(url);
-            return `Tocando '${pesquisa}' no YouTube!`;
+            return `Não achei um vídeo direto. Abrindo a busca do YouTube para '${pesquisa}'.`;
         }
-        case "pausar_youtube":
-        case "tocar_pausar_midia":
-            enviarTeclaMidiaVirtualKey(VK.MEDIA_PLAY_PAUSE);
-            return "Play/Pause enviado. ⏯️";
-        case "proxima_faixa":
-            enviarTeclaMidiaVirtualKey(VK.MEDIA_NEXT);
-            return "Próxima faixa! ⏭️";
-        case "faixa_anterior":
-            enviarTeclaMidiaVirtualKey(VK.MEDIA_PREV);
-            return "Faixa anterior! ⏮️";
         case "controlar_midia": {
             const acao = String(args.acao ?? "").toLowerCase();
-            if (["pausar", "tocar", "play", "pause", "play/pause", "toggle"].some((x) => acao.includes(x))) {
+            if (acao.includes("play_pause")) {
                 enviarTeclaMidiaVirtualKey(VK.MEDIA_PLAY_PAUSE);
                 return "Play/Pause executado.";
             }
-            if (["proximo", "próximo", "pular", "skip", "avançar"].some((x) => acao.includes(x))) {
+            if (acao.includes("proximo")) {
                 enviarTeclaMidiaVirtualKey(VK.MEDIA_NEXT);
                 return "Próxima faixa.";
             }
-            if (["anterior", "voltar", "volta"].some((x) => acao.includes(x))) {
+            if (acao.includes("anterior")) {
                 enviarTeclaMidiaVirtualKey(VK.MEDIA_PREV);
                 return "Faixa anterior.";
             }
-            return `Ação '${args.acao}' não suportada.`;
+            return `Ação de mídia '${args.acao}' não suportada.`;
         }
         case "esconder_todas_janelas": {
             if (os.platform() !== "win32")
@@ -457,10 +427,12 @@ public class K {
   [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 }
 "@
-[K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero)
-[K]::keybd_event(0x44, 0, 0, [UIntPtr]::Zero)
-[K]::keybd_event(0x44, 2, 0, [UIntPtr]::Zero)
-[K]::keybd_event(0x5B, 2, 0, [UIntPtr]::Zero)
+$KEY_UP = 0x0002; # Flag para soltar a tecla
+# Simula Win + D
+[K]::keybd_event(0x5B, 0, 0, [UIntPtr]::Zero)      # Win Key Down
+[K]::keybd_event(0x44, 0, 0, [UIntPtr]::Zero)      # D Key Down
+[K]::keybd_event(0x44, 0, $KEY_UP, [UIntPtr]::Zero) # D Key Up
+[K]::keybd_event(0x5B, 0, $KEY_UP, [UIntPtr]::Zero) # Win Key Up
 `;
     try {
         execFileSync("powershell", ["-NoProfile", "-Command", ps], { windowsHide: true, timeout: 5000 });
@@ -468,6 +440,30 @@ public class K {
     catch {
         /* */
     }
+}
+async function findFirstUrlOnDuckDuckGo(query) {
+    try {
+        const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`;
+        const raw = await httpGetText(url, 4000);
+        const j = JSON.parse(raw);
+        if (j.Redirect)
+            return j.Redirect;
+        const topics = j.RelatedTopics ?? [];
+        for (const topic of topics) {
+            if (topic.FirstURL)
+                return topic.FirstURL;
+            if (Array.isArray(topic.Topics)) {
+                for (const subTopic of topic.Topics) {
+                    if (subTopic.FirstURL)
+                        return subTopic.FirstURL;
+                }
+            }
+        }
+    }
+    catch (e) {
+        console.warn(`Error in findFirstUrlOnDuckDuckGo for query "${query}":`, e);
+    }
+    return "";
 }
 async function pesquisarDuckDuckGo(query, maxSnippets) {
     try {
