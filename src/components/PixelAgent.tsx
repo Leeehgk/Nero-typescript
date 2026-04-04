@@ -8,6 +8,8 @@ type GridPoint = { x: number; z: number };
 const GRID_MIN = -5;
 const GRID_MAX = 5;
 const INITIAL_FACING_Y = Math.PI * 0.25;
+const WORKSTATION_POINT: GridPoint = { x: 3, z: -2 };
+const PC_SCREEN_TARGET: GridPoint = { x: 3, z: -4 };
 const WALK_SPEED = 4.9;
 const ROTATION_SPEED = 9;
 
@@ -46,6 +48,10 @@ function moodParams(mood: AgentMood) {
   }
 }
 
+function isInteractionMood(mood: AgentMood): boolean {
+  return mood === "thinking" || mood === "speaking" || mood === "success" || mood === "error";
+}
+
 function pickRandomTarget(from: GridPoint): GridPoint {
   for (let i = 0; i < 12; i++) {
     const dx = Math.floor(Math.random() * 5) - 2;
@@ -76,6 +82,8 @@ export function PixelAgent() {
   const facingRef = useRef(INITIAL_FACING_Y);
   const nextWanderAtRef = useRef(0);
   const lastDebugSyncAtRef = useRef(0);
+  const prevMoodRef = useRef<AgentMood>(useNeroStore.getState().mood);
+  const waitingToPauseAtWorkstationRef = useRef(false);
 
   const setAgentDebug = useNeroStore((s) => s.setAgentDebug);
 
@@ -83,8 +91,22 @@ export function PixelAgent() {
     const t = state.clock.elapsedTime;
     const { mood, agentTarget } = useNeroStore.getState();
     const params = moodParams(mood);
+    const isThinking = mood === "thinking";
+    const isInteraction = isInteractionMood(mood);
 
-    if (!samePoint(agentTarget, lastExternalTargetRef.current)) {
+    if (prevMoodRef.current !== mood) {
+      if (isInteraction) {
+        lastExternalTargetRef.current = { ...agentTarget };
+        targetRef.current = { ...WORKSTATION_POINT };
+        waitingToPauseAtWorkstationRef.current = false;
+      } else if (isInteractionMood(prevMoodRef.current)) {
+        nextWanderAtRef.current = Number.POSITIVE_INFINITY;
+        waitingToPauseAtWorkstationRef.current = true;
+      }
+      prevMoodRef.current = mood;
+    }
+
+    if (!isInteraction && !samePoint(agentTarget, lastExternalTargetRef.current)) {
       lastExternalTargetRef.current = { ...agentTarget };
       targetRef.current = { ...agentTarget };
       nextWanderAtRef.current = t + 0.8;
@@ -99,8 +121,15 @@ export function PixelAgent() {
     const dzToTarget = targetRef.current.z - posRef.current.z;
     const distToTarget = Math.hypot(dxToTarget, dzToTarget);
     const reachedTarget = distToTarget < 0.04;
+    const distToWorkstation = Math.hypot(WORKSTATION_POINT.x - posRef.current.x, WORKSTATION_POINT.z - posRef.current.z);
+    const atWorkstation = distToWorkstation < 0.06;
 
-    if (reachedTarget && t >= nextWanderAtRef.current) {
+    if (!isInteraction && waitingToPauseAtWorkstationRef.current && atWorkstation) {
+      waitingToPauseAtWorkstationRef.current = false;
+      nextWanderAtRef.current = t + 5;
+    }
+
+    if (!isInteraction && reachedTarget && t >= nextWanderAtRef.current) {
       targetRef.current = pickRandomTarget(roundedPos);
       nextWanderAtRef.current = t + 1.3 + Math.random() * 1.6;
     }
@@ -121,9 +150,12 @@ export function PixelAgent() {
       }
     }
 
-    const targetRotation = walking
-      ? facingRef.current
-      : facingRef.current + Math.sin(t * 0.7) * 0.04;
+    const targetRotation =
+      mood === "thinking"
+        ? faceAngle(PC_SCREEN_TARGET.x - posRef.current.x, PC_SCREEN_TARGET.z - posRef.current.z)
+        : walking
+          ? facingRef.current
+          : facingRef.current + Math.sin(t * 0.7) * 0.04;
     facingRef.current = dampAngle(facingRef.current, targetRotation, dt);
 
     if (group.current) {
