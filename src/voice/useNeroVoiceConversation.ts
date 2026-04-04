@@ -79,6 +79,7 @@ export function useNeroVoiceConversation() {
 
   const setMood = useNeroStore((s) => s.setMood);
   const setLastReply = useNeroStore((s) => s.setLastReply);
+  const activateComputer = useNeroStore((s) => s.activateComputer);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -175,6 +176,7 @@ export function useNeroVoiceConversation() {
         setPhase("processing");
         phaseRef.current = "processing";
         setMood("thinking");
+        activateComputer();
         setSubtitle("Pensando...");
 
         const { reply, agentState } = await fetchChat(text);
@@ -184,6 +186,7 @@ export function useNeroVoiceConversation() {
         if (agentState === "error") setMood("error");
         else if (agentState === "success") setMood("success");
         else setMood("speaking");
+        activateComputer();
 
         setSubtitle("Nero responde...");
         startInterruptListener();
@@ -211,6 +214,7 @@ export function useNeroVoiceConversation() {
         const msg = e instanceof Error ? e.message : String(e);
         setVoiceError(msg);
         setMood("error");
+        activateComputer();
         await speakText("Tive um problema. Confirme se a API esta em execucao na porta 8787 e tente de novo.");
         if (voiceEnabledRef.current) {
           setPhase("active_listening");
@@ -223,7 +227,15 @@ export function useNeroVoiceConversation() {
         }
       }
     },
-    [clearRestartCommandTimer, scheduleCommandListenerRestart, setLastReply, setMood, startInterruptListener, stopAllRecognition]
+    [
+      activateComputer,
+      clearRestartCommandTimer,
+      scheduleCommandListenerRestart,
+      setLastReply,
+      setMood,
+      startInterruptListener,
+      stopAllRecognition,
+    ]
   );
 
   const listenOneCommand = useCallback(() => {

@@ -1,7 +1,7 @@
 import { useLayoutEffect, type ReactNode } from "react";
 import { OrthographicCamera } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Color, Fog } from "three";
+import { Color } from "three";
 import { useNeroStore } from "../store";
 import { HabboKeyboard } from "./HabboKeyboard";
 import { PixelAgent } from "./PixelAgent";
@@ -10,7 +10,7 @@ function HabboSky() {
   const { scene } = useThree();
   useLayoutEffect(() => {
     scene.background = new Color("#87b8d8");
-    scene.fog = new Fog("#a8cce8", 14, 42);
+    scene.fog = null;
   }, [scene]);
   return null;
 }
@@ -74,7 +74,7 @@ function HabboBackWall() {
       </mesh>
       <mesh position={[-4.2, 2.5, -5.25]}>
         <planeGeometry args={[2.2, 1.5]} />
-        <meshStandardMaterial color="#b8dcf0" emissive="#6aa8c8" emissiveIntensity={0.25} />
+        <meshStandardMaterial color="#9ab8ca" roughness={0.92} metalness={0.02} />
       </mesh>
     </group>
   );
@@ -106,6 +106,7 @@ function HabboColumns() {
 }
 
 function HabboOfficeFurniture() {
+  const computerActive = useNeroStore((s) => s.computerActive);
   const wood = "#c49a6c";
   const dark = "#8b6914";
   return (
@@ -130,10 +131,17 @@ function HabboOfficeFurniture() {
           <boxGeometry args={[0.75, 0.5, 0.06]} />
           <meshStandardMaterial color="#2a2a30" />
         </mesh>
-        <mesh position={[0.3, 0.85, -0.42]}>
-          <planeGeometry args={[0.65, 0.38]} />
-          <meshStandardMaterial color="#3a5568" emissive="#1e3040" emissiveIntensity={0.45} />
-        </mesh>
+        {computerActive ? (
+          <mesh position={[0.3, 0.85, -0.414]}>
+            <planeGeometry args={[0.56, 0.3]} />
+            <meshBasicMaterial color="#eef3f6" />
+          </mesh>
+        ) : (
+          <mesh position={[0.3, 0.85, -0.414]}>
+            <planeGeometry args={[0.56, 0.3]} />
+            <meshBasicMaterial color="#334b5b" />
+          </mesh>
+        )}
         <mesh position={[0.25, 0.55, 0.2]} castShadow>
           <boxGeometry args={[0.35, 0.06, 0.25]} />
           <meshStandardMaterial color="#eae8e4" />
@@ -199,7 +207,6 @@ export function OfficeScene() {
         shadow-camera-top={12}
         shadow-camera-bottom={-12}
       />
-      <pointLight position={[-4, 8, 4]} intensity={0.28} color="#ffe8cc" />
       <HabboFloor />
       <FloorClickNav />
       <HabboBackWall />

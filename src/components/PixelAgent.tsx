@@ -126,7 +126,7 @@ export function PixelAgent() {
 
     if (!isInteraction && waitingToPauseAtWorkstationRef.current && atWorkstation) {
       waitingToPauseAtWorkstationRef.current = false;
-      nextWanderAtRef.current = t + 5;
+      nextWanderAtRef.current = t + 10;
     }
 
     if (!isInteraction && reachedTarget && t >= nextWanderAtRef.current) {

@@ -16,6 +16,8 @@ export type AgentDebug = {
   updatedAt: number;
 };
 
+let computerActiveTimer: ReturnType<typeof setTimeout> | null = null;
+
 const GRID = { min: -5, max: 5 } as const;
 
 function clampGrid(x: number, z: number): AgentGrid {
@@ -35,9 +37,11 @@ type Store = {
   /** Destino de movimento (centro do azulejo). */
   agentTarget: AgentGrid;
   agentDebug: AgentDebug | null;
+  computerActive: boolean;
   setAgentTarget: (x: number, z: number) => void;
   nudgeAgent: (dx: number, dz: number) => void;
   setAgentDebug: (debug: AgentDebug) => void;
+  activateComputer: (durationMs?: number) => void;
   setMood: (m: AgentMood) => void;
   setLastReply: (s: string) => void;
   setLlmProvider: (p: LlmProvider) => void;
@@ -55,12 +59,21 @@ export const useNeroStore = create<Store>()(
       groqModel: "",
       agentTarget: { x: 1, z: 1 },
       agentDebug: null,
+      computerActive: false,
       setAgentTarget: (x, z) => set({ agentTarget: clampGrid(x, z) }),
       nudgeAgent: (dx, dz) => {
         const { x, z } = get().agentTarget;
         set({ agentTarget: clampGrid(x + dx, z + dz) });
       },
       setAgentDebug: (agentDebug) => set({ agentDebug }),
+      activateComputer: (durationMs = 10000) => {
+        if (computerActiveTimer) clearTimeout(computerActiveTimer);
+        set({ computerActive: true });
+        computerActiveTimer = setTimeout(() => {
+          set({ computerActive: false });
+          computerActiveTimer = null;
+        }, durationMs);
+      },
       setMood: (mood) => set({ mood }),
       setLastReply: (lastReply) => set({ lastReply }),
       setLlmProvider: (llmProvider) => set({ llmProvider }),

@@ -1,152 +1,370 @@
-# 🤖 Nero Agent (TypeScript) — Assistente Pessoal de IA por Voz
+# Nero Agent (TypeScript)
 
-Assistente pessoal de IA ativado por voz, com **inteligência autônoma** via Groq (Llama 3.1 8B), **memória de longo prazo** e **ferramentas** que ele decide sozinho quando usar. Construído com TypeScript, React (Vite) e Node.js (Express).
+Assistente pessoal com voz, memoria, automacao local no Windows e avatar 3D em React Three Fiber.
 
-> Fala Português do Brasil 🇧🇷 · Voz neural Edge TTS · Roda no Windows.
+O projeto roda com:
 
----
+- frontend React + Vite
+- backend Express + TypeScript
+- LLM local compativel com OpenAI (ex.: LM Studio)
+- Groq como opcao de nuvem
+- TTS neural via Edge no servidor
+- reconhecimento de voz via Web Speech API no navegador
 
-## ✨ Funcionalidades
+## Estado atual
 
-### 🧠 Inteligência
-- **LLM Dual**: Alterne facilmente entre um LLM rodando localmente (via LM Studio, Ollama, etc.) e a API de alta velocidade da Groq na nuvem.
-- **Function Calling**: O LLM analisa o que você diz e decide de forma autônoma se precisa usar uma ferramenta (como pesquisar na web) ou apenas conversar.
-- **Memória de Longo Prazo**: Aprende fatos sobre você (nome, preferências, hábitos) e os armazena em `perfil_nero.json` para lembrar entre sessões.
-- **Memória de Curto Prazo**: Mantém o histórico das últimas conversas em `memoria_nero.json` para dar contexto ao diálogo.
-- **Aprendizado Contínuo**: Após cada interação, um LLM em segundo plano analisa a conversa para extrair e salvar novos fatos sobre você.
+O README abaixo ja reflete o comportamento atual do projeto, incluindo as correcoes recentes:
 
-### 🎤 Voz
-- **Conversa por Voz**: Use a voz para interagir com o Nero, com reconhecimento de fala diretamente no navegador (Chrome/Edge).
-- **Wake Word**: Diga "Nero" para ativar o assistente quando ele estiver em modo de espera.
-- **TTS Neural via Servidor**: As respostas são convertidas em áudio com uma voz natural (`pt-BR-AntonioNeural`) através do backend, garantindo consistência.
-- **Interrupção por Voz**: Você pode falar a qualquer momento para interromper a resposta do Nero.
+- TTS do servidor mais estavel, com fallback automatico de voz em portugues quando `pt-BR-AntonioNeural` falha.
+- Conversa por voz com microfone rearmado automaticamente enquanto o modo de voz estiver ativo.
+- Recuperacao de tool calls no formato `<function=...>` quando o provedor retorna `tool_use_failed`.
+- Bloqueio de ferramentas sensiveis quando o pedido do usuario nao for explicito.
+- Interface mais estavel, com baloes fora do `Canvas` e `error boundary` para evitar tela branca.
+- PixelAgent com locomocao aleatoria funcional, ida ao PC durante interacoes e pausa controlada apos responder.
+- Tela do monitor acende por 10 segundos durante acoes do Nero sem iluminar o ambiente inteiro.
+- Cena 3D ajustada para evitar areas lavadas/brancas no mapa.
 
-### 🛠️ Ferramentas Autônomas
+## Principais recursos
 
-O Nero decide sozinho quando usar cada ferramenta:
+### Voz
 
-| Ferramenta | Comando exemplo |
-|------------|----------------|
-| 🎵 Tocar no YouTube | *"toca o último álbum do The Killers no YouTube"* |
-| ⏯️ Controlar Mídia | *"pausa a música"* / *"próxima faixa"* / *"volta uma música"* |
-| 🔊 Alterar Volume | *"aumenta o volume para 80%"* / *"mutar"* |
-| 💻 Abrir Programa | *"abre a calculadora"* / *"inicia o VS Code"* |
-| ❌ Fechar Programa | *"fecha o bloco de notas"* |
-| 📰 Notícias do Dia | *"quais são as notícias de hoje?"* |
-| 🗓️ Data e Hora | *"que horas são?"* / *"que dia é hoje?"* |
-| 🌤️ Clima | *"como está o clima em São Paulo?"* |
-| 🔍 Pesquisa Web | *"pesquisa sobre a história da computação"* |
-| 🌐 Abrir Navegador | *"abre o GitHub"* |
-| 📸 Capturar Tela | *"tira um print da tela toda"* |
-| 📝 Criar Anotação | *"anota aí: comprar pão e leite amanhã"* |
+- Conversa por voz em portugues do Brasil.
+- Wake word com variacoes de "Nero".
+- TTS neural servido por `POST /api/tts`.
+- Fallback para TTS do navegador se o audio do servidor falhar.
+- Interrupcao da fala atual quando o usuario volta a falar.
+- Modo de voz continuo: o microfone pausa durante processamento/fala e volta sozinho depois.
 
-### 🗣️ Comandos de Controle por Voz
+### LLM
 
-| Comando | Ação |
-|---------|------|
-| *"Nero"* | Ativa o assistente (wake word) |
-| *"vai descansar"* | Coloca o Nero em modo de espera (stand-by) |
-| *"o que você sabe sobre mim?"* | Lista fatos aprendidos |
-| *"limpa a memória"* / *"esquece tudo"* | Apaga as memórias de curto e longo prazo |
+- Alternancia entre provedor local e Groq pela interface.
+- Modelo configuravel por `.env` ou pelos campos da UI.
+- Respostas curtas por padrao para manter a conversa rapida.
+- Aprendizado em segundo plano com extracao de fatos sobre o usuario.
 
----
+### Memoria
 
-## 📁 Estrutura do Projeto
+- Memoria curta persistida em `memoria_nero.json`.
+- Perfil persistido em `perfil_nero.json`.
+- Limpeza rapida por comando de voz ou texto.
+- Consulta dos fatos aprendidos pelo proprio Nero.
 
-```
-Eon-Agent/
-├── agente_local.py     ← Loop principal + Groq function calling
-├── ferramentas.py      ← 9 ferramentas + schemas para o LLM
-├── memoria.py          ← Memória de curto prazo + longo prazo + aprendizado
-├── audio.py            ← Microfone global, TTS Edge, wake word, interrupção
-├── config_eon.json     ← Configuração do nome do usuário
-├── memoria_nero.json   ← Memória de curto prazo (auto-gerado)
-├── perfil_nero.json    ← Memória de longo prazo — fatos aprendidos (auto-gerado)
-└── README.md
-```
+### Ferramentas
 
----
+Ferramentas disponiveis hoje:
 
-## ⚙️ Instalação
+- tocar musica no YouTube
+- controlar midia
+- alterar volume
+- obter data e hora
+- obter clima
+- ler noticias do dia
+- pesquisar na web
+- abrir navegador
+- abrir programa
+- fechar programa
+- capturar tela
+- criar anotacao
+- obter musica atual
+- esconder, restaurar e alternar janelas
 
-### Pré-requisitos
-- Python 3.10+
-- Windows 10/11
-- Microfone
+Seguranca atual:
 
-### Dependências
+- ferramentas com risco de abrir programas, mexer em janela, volume ou navegador so executam com pedido claro
+- conversa ambigua nao vira automacao no Windows
+- o agente nao deve dizer que executou algo sem chamar a ferramenta correspondente
+
+## Requisitos
+
+- Windows 10 ou 11 para as automacoes locais
+- Node.js 20+ recomendado
+- npm
+- Chrome ou Edge para reconhecimento de voz
+- microfone liberado no navegador
+- LM Studio ou outro endpoint OpenAI-compatible, se for usar modelo local
+
+## Instalacao
 
 ```bash
-python -m pip install groq SpeechRecognition edge-tts pygame pywhatkit pyautogui Pillow requests duckduckgo-search
+npm install
 ```
 
----
+## Configuracao do ambiente
 
-## 🚀 Como Usar
+Crie o arquivo `.env` a partir de `.env.example`.
 
 ```bash
-cd C:\Eon-Agent
-python agente_local.py
+copy .env.example .env
 ```
 
-1. O Nero inicia e fica em **stand-by** 💤
-2. Diga **"Nero"** para ativar
-3. Converse ou peça ações naturalmente
-4. Diga **"vai descansar"** para voltar ao stand-by
-5. Diga **"desligar sistema"** para encerrar
+Variaveis suportadas hoje:
 
----
+| Variavel | Obrigatoria | Padrao | Uso |
+| --- | --- | --- | --- |
+| `LOCAL_LM_URL` | nao | `http://127.0.0.1:1234/v1` | Base URL do modelo local compativel com OpenAI |
+| `LOCAL_LM_MODEL` | nao | `local-model` | Nome padrao do modelo local |
+| `OPENAI_API_KEY` | nao | `lm-studio` | Chave usada no cliente OpenAI do provedor local |
+| `GROQ_API_KEY` | so para Groq | vazio | Chave da API Groq |
+| `GROQ_MODEL` | nao | `llama-3.1-8b-instant` | Modelo padrao do Groq |
+| `EDGE_TTS_VOICE` | nao | `pt-BR-AntonioNeural` | Voz preferida do TTS do servidor |
+| `PORT` | nao | `8787` | Porta da API Express |
+| `NERO_MAX_REPLY_TOKENS` | nao | `640` | Limite de tokens da resposta |
+| `NERO_CONTEXT_MESSAGES` | nao | `12` | Quantas mensagens entram no contexto enxuto do LLM |
+| `NERO_MAX_FACTS_SYSTEM` | nao | `12` | Quantos fatos do perfil entram no prompt |
+| `NERO_MAX_CHARS_PER_MSG` | nao | `1200` | Truncagem por mensagem no contexto |
 
-## 🔑 Configuração
+Exemplo de `.env`:
 
-### Arquivo .env
-O projeto utiliza um arquivo `.env` para gerenciar chaves de API e configurações sensíveis.
-1. Copie o arquivo `.env.example` para `.env`.
-2. Insira sua `GROQ_API_KEY` no arquivo `.env`.
+```env
+LOCAL_LM_URL=http://127.0.0.1:1234/v1
+LOCAL_LM_MODEL=nome-do-modelo-no-lm-studio
+OPENAI_API_KEY=lm-studio
 
-> [!CAUTION]
-> Nunca envie seu arquivo `.env` para o GitHub. Ele já está configurado no `.gitignore`.
+GROQ_API_KEY=sua_chave_groq_aqui
+GROQ_MODEL=llama-3.1-8b-instant
 
-### Configurações Adicionais
-- **Groq**: Pegue sua chave em [console.groq.com](https://console.groq.com).
-- **Nome do Usuário**: Edite `config_eon.json`.
+EDGE_TTS_VOICE=pt-BR-AntonioNeural
+PORT=8787
 
----
-
-## 🧠 Como Funciona a Inteligência
-
-### Function Calling (Intenções)
-```
-Usuário: "toca Metallica no YouTube"
-  ↓
-Groq analisa → detecta intenção → chama tocar_youtube("Metallica")
-  ↓
-Função executa → retorna resultado
-  ↓
-Groq formula resposta: "Colocando Metallica no YouTube!"
+NERO_MAX_REPLY_TOKENS=640
+NERO_CONTEXT_MESSAGES=12
+NERO_MAX_FACTS_SYSTEM=12
+NERO_MAX_CHARS_PER_MSG=1200
 ```
 
-### Aprendizado de Longo Prazo
+### Nome do usuario
+
+O nome usado pelo Nero pode ser configurado em `config_eon.json` na raiz:
+
+```json
+{
+  "nome_usuario": "chefe"
+}
 ```
-Conversa: "me chame de Mestre"
-  ↓
-Groq responde normalmente
-  ↓
-2ª chamada (background): analisa e extrai → "O usuário quer ser chamado de Mestre"
-  ↓
-Salva em perfil_nero.json → próxima sessão já lembra
+
+Se o arquivo nao existir, o backend usa `"chefe"` por padrao.
+
+## Como rodar
+
+### Desenvolvimento completo
+
+```bash
+npm run dev
 ```
 
----
+Isso sobe:
 
-## 🛣️ Roadmap
+- cliente Vite
+- servidor Express em modo watch
 
-- [x] Groq como cérebro (substituiu Google AI)
-- [x] Wake word + TTS + interrupção por voz
-- [x] Memória de curto prazo persistente
-- [x] Memória de longo prazo com aprendizado via LLM
-- [x] Function calling — 9 ferramentas autônomas
-- [ ] Controle de abas do Chrome por nome
-- [ ] Modo programação (IDE automation)
-- [ ] Visão computacional (OCR/Tesseract)
-- [ ] Rotinas automáticas baseadas em padrões do usuário
+### Somente servidor
+
+```bash
+npm run dev:server
+```
+
+### Somente cliente
+
+```bash
+npm run dev:client
+```
+
+### Verificacao de tipos
+
+```bash
+npm run typecheck
+```
+
+### Build
+
+```bash
+npm run build
+```
+
+### Preview do frontend buildado
+
+```bash
+npm run preview
+```
+
+## Fluxo da aplicacao
+
+### Cliente
+
+- `src/App.tsx`: layout principal, campos de entrada, selecao de provedor, estado visual e painel de debug
+- `src/components/OfficeScene.tsx`: cenario 3D isometrico
+- `src/components/PixelAgent.tsx`: avatar, movimento e reacoes ao mood
+- `src/voice/useNeroVoiceConversation.ts`: ciclo de voz, standby, wake word, escuta, TTS e rearme do microfone
+- `src/voice/tts.ts`: TTS do cliente com fetch para `/api/tts` e fallback local
+
+### Servidor
+
+- `server/index.ts`: API Express e rotas principais
+- `server/agent.ts`: orchestration do LLM, recuperacao de tool call e regras de seguranca
+- `server/tools.ts`: ferramentas que executam acoes locais e consultas externas
+- `server/tts-edge.ts`: sintese do Edge TTS com fallback de voz
+- `server/memory.ts`: memoria curta, perfil e aprendizado
+
+## API
+
+Rotas expostas hoje:
+
+- `GET /api/health`: status basico da API e dos provedores
+- `GET /api/config`: configuracao atual exposta ao cliente
+- `GET /api/state`: quantidade de mensagens, fatos e nome do usuario
+- `POST /api/chat`: conversa com o agente
+- `POST /api/tts`: sintetiza audio MP3 da resposta
+
+## Conversa por voz
+
+Requisitos:
+
+- Chrome ou Edge
+- `localhost` ou contexto seguro `https`
+- permissao de microfone liberada
+
+Comportamento atual:
+
+- ao clicar em "Ativar conversa por voz", o Nero entra em standby
+- ao ouvir variantes de "Nero", entra em escuta ativa
+- durante a escuta ativa, o microfone continua se rearmando automaticamente
+- enquanto o Nero pensa ou fala, a escuta e pausada
+- quando a resposta termina, a escuta volta sozinha
+- o usuario pode interromper a fala do Nero voltando a falar
+
+## PixelAgent
+
+O comportamento atual do avatar esta centralizado em `src/components/PixelAgent.tsx`.
+
+### Mapa
+
+- grade de movimento de `-5` a `5` nos eixos `x` e `z`
+- clique no chao move o destino externo
+- teclado `WASD` e setas tambem pode deslocar por azulejo
+
+### Estados do avatar
+
+- `idle`: vagueia livremente pelo mapa
+- `listening`: continua se movendo, sem travar a conversa
+- `thinking`: vai ate a estacao de trabalho `[3, -2]` e gira para o alvo da tela do PC
+- `speaking`: fica na area do PC durante a interacao
+- `success`: mantem comportamento de interacao encerrando a acao
+- `error`: mantem comportamento de interacao para feedback visual
+
+### Regras de movimento atuais
+
+- velocidade de caminhada definida por `WALK_SPEED = 4.9`
+- rotacao suavizada por `ROTATION_SPEED = 9`
+- o destino aleatorio e escolhido a partir da posicao atual
+- durante interacao, o alvo interno muda para a estacao de trabalho
+- quando a interacao termina, o Nero fica parado por 10 segundos na mesa
+- depois da pausa, volta a patrulhar sozinho
+
+### Coordenadas importantes
+
+- ponto de trabalho: `[3, -2]`
+- alvo visual da tela do PC: `[3, -4]`
+
+### Debug de movimento
+
+A interface mostra um painel de debug com:
+
+- `mood global`
+- `alvo store`
+- `pos avatar`
+- `alvo interno`
+- `andando`
+- `mood avatar`
+- `atualizacao`
+
+Esse painel tem sido usado para depurar render loop, alvo interno e locomocao do avatar.
+
+## Monitor e cena 3D
+
+Comportamento atual da mesa do computador:
+
+- quando o Nero entra em acao, a tela do monitor fica branca por 10 segundos
+- a tela acende sem lancar luz real na sala
+- o brilho fica restrito ao plano do monitor
+
+A cena tambem recebeu ajustes de estabilidade:
+
+- `Canvas` com `frameloop="always"` para evitar congelamento do avatar
+- baloes de fala renderizados fora do `Canvas`
+- `error boundary` na interface principal
+- remocao de efeitos que estavam lavando cantos do mapa
+
+## Memoria e arquivos gerados
+
+Arquivos persistidos na raiz do projeto:
+
+- `memoria_nero.json`: memoria curta com ate 30 mensagens
+- `perfil_nero.json`: fatos aprendidos sobre o usuario, com limite de 50
+- `anotacoes_nero.txt`: anotacoes criadas pela ferramenta
+- `Prints/`: capturas de tela feitas pelo agente
+- `config_eon.json`: configuracao do nome do usuario
+
+## Estrutura resumida
+
+```text
+Nero-typescript/
+|- src/
+|  |- components/
+|  |  |- OfficeScene.tsx
+|  |  |- PixelAgent.tsx
+|  |  `- HabboKeyboard.tsx
+|  |- voice/
+|  |  |- useNeroVoiceConversation.ts
+|  |  |- speechRecognition.ts
+|  |  `- tts.ts
+|  |- App.tsx
+|  `- store.ts
+|- server/
+|  |- index.ts
+|  |- agent.ts
+|  |- llm.ts
+|  |- memory.ts
+|  |- tools.ts
+|  |- tts-edge.ts
+|  `- paths.ts
+|- .env.example
+|- memoria_nero.json
+|- perfil_nero.json
+`- README.md
+```
+
+## Solucao de problemas
+
+### O microfone fecha sozinho
+
+- use Chrome ou Edge
+- confira permissao de microfone
+- rode em `localhost` ou `https`
+- confirme que o modo de voz esta ativo
+
+### O Nero nao fala com a voz Antonio
+
+- confira `EDGE_TTS_VOICE` no `.env`
+- teste `POST /api/tts`
+- o servidor tenta fallbacks em portugues se a voz principal falhar
+
+### Groq nao responde
+
+- confirme `GROQ_API_KEY`
+- confira o modelo em `GROQ_MODEL`
+- a UI mostra quando o Groq nao esta configurado
+
+### O agente abre coisas sem pedir
+
+O backend hoje bloqueia ferramentas sensiveis sem intencao explicita. Se isso voltar a acontecer, revise `server/agent.ts`, especialmente:
+
+- `RISKY_TOOLS`
+- `hasExplicitActionIntent`
+- `isToolAllowed`
+
+## Observacoes
+
+- varias automacoes dependem de Windows
+- busca web, noticias e clima dependem de acesso a internet
+- o TTS do servidor usa `edge-tts-universal`
+- o provedor local usa cliente OpenAI apontando para um endpoint compativel

@@ -60,6 +60,7 @@ export function App() {
   }>({});
   const setMood = useNeroStore((s) => s.setMood);
   const setLastReply = useNeroStore((s) => s.setLastReply);
+  const activateComputer = useNeroStore((s) => s.activateComputer);
   const lastReply = useNeroStore((s) => s.lastReply);
   const mood = useNeroStore((s) => s.mood);
   const agentTarget = useNeroStore((s) => s.agentTarget);
@@ -114,6 +115,7 @@ export function App() {
     if (!text) return;
     setInput("");
     setMood("thinking");
+    activateComputer();
     try {
       const payload: Record<string, string> = { message: text, provider: llmProvider };
       const lm = localModel.trim();
@@ -149,19 +151,22 @@ export function App() {
         if (st === "error") setMood("error");
         else if (st === "success") setMood("success");
         else setMood("speaking");
+        activateComputer();
       } else {
         setMood("error");
+        activateComputer();
       }
     } catch (err) {
       console.error("Erro ao enviar mensagem:", err);
       setMood("error");
+      activateComputer();
       setLastReply(
         err instanceof Error
           ? `Erro: ${err.message}`
           : "Não consegui falar com o servidor. Verifique o console."
       );
     }
-  }, [input, llmProvider, localModel, groqModel, setLastReply, setMood]);
+  }, [activateComputer, input, llmProvider, localModel, groqModel, setLastReply, setMood]);
 
   return (
     <div
