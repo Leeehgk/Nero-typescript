@@ -65,7 +65,7 @@ export const toolDefinitions = [
     type: "function" as const,
     function: {
       name: "esconder_todas_janelas",
-      description: "Minimiza janelas visíveis (área de trabalho limpa).",
+      description: "Minimiza todas as janelas visiveis. Use para pedidos como minimizar, esconder ou ocultar as janelas.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -73,7 +73,7 @@ export const toolDefinitions = [
     type: "function" as const,
     function: {
       name: "restaurar_todas_janelas",
-      description: "Restaura janelas minimizadas pela ferramenta anterior.",
+      description: "Restaura as janelas minimizadas anteriormente. Use para mostrar as janelas novamente.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -96,6 +96,30 @@ export const toolDefinitions = [
           acao: { type: "string", description: "aumentar, diminuir, mutar" },
         },
         required: ["acao"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "minimizar_programa",
+      description: "Minimiza a janela visivel de um programa especifico pelo nome. Ex.: Chrome, Notepad, VS Code, Explorer.",
+      parameters: {
+        type: "object",
+        properties: { nome: { type: "string" } },
+        required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "restaurar_programa",
+      description: "Restaura a janela minimizada de um programa especifico pelo nome. Ex.: Chrome, Notepad, VS Code, Explorer.",
+      parameters: {
+        type: "object",
+        properties: { nome: { type: "string" } },
+        required: ["nome"],
       },
     },
   },
@@ -154,8 +178,40 @@ export const toolDefinitions = [
   {
     type: "function" as const,
     function: {
+      name: "abrir_pasta",
+      description:
+        "Abre uma pasta do Windows. Use para Documentos, Downloads, Desktop, Imagens, Videos, Musicas ou para abrir uma subpasta dentro de uma pasta base. Parametro nome: pasta desejada ou caminho. Parametro dentro_de: pasta base opcional, como documentos.",
+      parameters: {
+        type: "object",
+        properties: {
+          nome: { type: "string" },
+          dentro_de: { type: "string" },
+        },
+        required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "fechar_pasta",
+      description:
+        "Fecha uma janela aberta do Explorer para uma pasta do Windows. Use para Documentos, Downloads, Desktop, Imagens, Videos, Musicas ou para fechar uma subpasta dentro de uma pasta base. Parametro nome: pasta desejada ou caminho. Parametro dentro_de: pasta base opcional, como documentos.",
+      parameters: {
+        type: "object",
+        properties: {
+          nome: { type: "string" },
+          dentro_de: { type: "string" },
+        },
+        required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "abrir_programa",
-      description: "Abre programa Windows (calculadora, notepad, paint, etc.).",
+      description: "Abre programa Windows (calculadora, notepad, paint, etc.). Nao use para pastas.",
       parameters: {
         type: "object",
         properties: { nome: { type: "string" } },
@@ -167,7 +223,7 @@ export const toolDefinitions = [
     type: "function" as const,
     function: {
       name: "fechar_programa",
-      description: "Fecha um programa pelo nome.",
+      description: "Fecha um programa pelo nome. Nao use para pastas do Explorer.",
       parameters: {
         type: "object",
         properties: { nome: { type: "string" } },
@@ -179,8 +235,25 @@ export const toolDefinitions = [
     type: "function" as const,
     function: {
       name: "capturar_tela",
-      description: "Salva screenshot em Prints/",
+      description: "Salva screenshot em Prints/. Use apenas quando o usuario quiser tirar, salvar ou gerar um print da tela.",
       parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "analisar_tela",
+      description:
+        "Captura a tela atual e responde sobre o que aparece nela. Use para pedidos como olhar a tela, descrever o que aparece, ler textos visiveis ou dizer o que esta na tela.",
+      parameters: {
+        type: "object",
+        properties: {
+          pergunta: {
+            type: "string",
+            description: "Pergunta visual do usuario, por exemplo: o que aparece na tela, leia o texto da tela, qual programa esta aberto.",
+          },
+        },
+      },
     },
   },
   {
@@ -206,6 +279,43 @@ export const toolDefinitions = [
 ];
 
 type ToolName = (typeof toolDefinitions)[number]["function"]["name"];
+
+function buildPrintPath(): string {
+  if (!fs.existsSync(PRINTS_DIR)) fs.mkdirSync(PRINTS_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return path.join(PRINTS_DIR, `Print_${stamp}.png`);
+}
+
+export async function capturarTelaAtual(): Promise<string> {
+  const outPath = buildPrintPath();
+
+  if (os.platform() !== "win32") {
+    throw new Error("Captura de tela so no Windows por enquanto.");
+  }
+
+  const ps = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+$bmp.Save("${outPath.replace(/\\/g, "\\\\")}", [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $bmp.Dispose()
+`;
+
+  try {
+    execFileSync("powershell", ["-NoProfile", "-Command", ps], { windowsHide: true, timeout: 30000 });
+  } catch (error) {
+    throw new Error(`Erro captura: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (!fs.existsSync(outPath)) {
+    throw new Error("A captura foi executada, mas o arquivo nao foi encontrado.");
+  }
+
+  return outPath;
+}
 
 export async function executarFerramenta(name: ToolName, args: Record<string, unknown>): Promise<string> {
   switch (name) {
@@ -269,6 +379,26 @@ export async function executarFerramenta(name: ToolName, args: Record<string, un
     case "alternar_janelas":
       enviarWinD();
       return "Win+D alternado.";
+    case "minimizar_programa": {
+      const nome = String(args.nome ?? "").trim();
+      const count = await alterarJanelaProgramaWindows(nome, "minimizar");
+      if (count > 0) {
+        return count === 1
+          ? `Minimizei a janela do programa '${nome}'.`
+          : `Minimizei ${count} janelas do programa '${nome}'.`;
+      }
+      return `Nao encontrei janela visivel para o programa '${nome}'.`;
+    }
+    case "restaurar_programa": {
+      const nome = String(args.nome ?? "").trim();
+      const count = await alterarJanelaProgramaWindows(nome, "restaurar");
+      if (count > 0) {
+        return count === 1
+          ? `Restaurei a janela do programa '${nome}'.`
+          : `Restaurei ${count} janelas do programa '${nome}'.`;
+      }
+      return `Nao encontrei janela para restaurar do programa '${nome}'.`;
+    }
     case "alterar_volume": {
       const acao = String(args.acao ?? "").toLowerCase();
       if (["aumentar", "mais", "up", "aumenta"].some((x) => acao.includes(x))) {
@@ -321,6 +451,37 @@ export async function executarFerramenta(name: ToolName, args: Record<string, un
       if (!url.startsWith("http")) url = `https://${url}`;
       await open(url);
       return `Navegador aberto: ${url}`;
+    }
+    case "abrir_pasta": {
+      const nome = String(args.nome ?? "");
+      const dentroDe = String(args.dentro_de ?? "");
+      const found = await localizarPastaWindows(nome, dentroDe);
+      if (!found) {
+        if (dentroDe.trim()) {
+          return `Nao encontrei a pasta '${nome}' dentro de '${dentroDe}'.`;
+        }
+        return `Nao encontrei a pasta '${nome}'.`;
+      }
+      await open(found);
+      return `Pasta aberta: ${found}`;
+    }
+    case "fechar_pasta": {
+      const nome = String(args.nome ?? "");
+      const dentroDe = String(args.dentro_de ?? "");
+      const found = await localizarPastaWindows(nome, dentroDe);
+      if (!found) {
+        if (dentroDe.trim()) {
+          return `Nao encontrei a pasta '${nome}' dentro de '${dentroDe}'.`;
+        }
+        return `Nao encontrei a pasta '${nome}'.`;
+      }
+      const closedCount = await fecharJanelaDaPastaWindows(found);
+      if (closedCount > 0) {
+        return closedCount === 1
+          ? `Fechei a janela da pasta: ${found}`
+          : `Fechei ${closedCount} janelas da pasta: ${found}`;
+      }
+      return `A pasta '${found}' nao estava aberta em nenhuma janela do Explorer.`;
     }
     case "abrir_programa": {
       const nome = String(args.nome ?? "").toLowerCase().trim();
@@ -414,6 +575,308 @@ $g.Dispose(); $bmp.Dispose()
       return await obterMusicaAtualWindows();
     default:
       return "Ferramenta desconhecida.";
+  }
+}
+
+function normalizeFolderName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikeFolderPath(value: string): boolean {
+  const trimmed = value.trim();
+  return path.isAbsolute(trimmed) || trimmed.includes("\\") || trimmed.includes("/");
+}
+
+function existingDirectory(candidate: string): string | null {
+  try {
+    const resolved = path.resolve(candidate);
+    if (fs.statSync(resolved).isDirectory()) return resolved;
+  } catch {
+    /* noop */
+  }
+  return null;
+}
+
+async function resolveWindowsKnownFolder(name: string): Promise<string | null> {
+  const normalized = normalizeFolderName(name);
+  if (!normalized) return null;
+
+  const home = os.homedir();
+  const fromCandidates = (candidates: string[]): string | null => {
+    for (const candidate of candidates) {
+      const found = existingDirectory(candidate);
+      if (found) return found;
+    }
+    return null;
+  };
+  const fromPowerShellFolder = async (specialFolder: string, fallbacks: string[]): Promise<string | null> => {
+    try {
+      const { stdout } = await execFileAsync(
+        "powershell",
+        ["-NoProfile", "-Command", `[Environment]::GetFolderPath('${specialFolder}')`],
+        { encoding: "utf-8", windowsHide: true, timeout: 4000 }
+      );
+      const psPath = existingDirectory(stdout.trim());
+      if (psPath) return psPath;
+    } catch {
+      /* noop */
+    }
+    return fromCandidates(fallbacks);
+  };
+
+  if (["documentos", "documento", "meus documentos", "documents", "docs"].includes(normalized)) {
+    return fromPowerShellFolder("MyDocuments", [path.join(home, "Documents"), path.join(home, "Documentos")]);
+  }
+  if (["desktop", "area de trabalho", "mesa"].includes(normalized)) {
+    return fromPowerShellFolder("Desktop", [
+      path.join(home, "Desktop"),
+      path.join(home, "Area de Trabalho"),
+      path.join(home, "Área de Trabalho"),
+    ]);
+  }
+  if (["downloads", "download", "baixados"].includes(normalized)) {
+    return fromCandidates([path.join(home, "Downloads"), path.join(home, "Baixados")]);
+  }
+  if (["imagens", "imagem", "fotos", "pictures"].includes(normalized)) {
+    return fromPowerShellFolder("MyPictures", [path.join(home, "Pictures"), path.join(home, "Imagens")]);
+  }
+  if (["videos", "video", "filmes", "movies"].includes(normalized)) {
+    return fromPowerShellFolder("MyVideos", [path.join(home, "Videos"), path.join(home, "Video")]);
+  }
+  if (["musicas", "musica", "music", "audio", "audios"].includes(normalized)) {
+    return fromPowerShellFolder("MyMusic", [path.join(home, "Music"), path.join(home, "Musicas"), path.join(home, "Músicas")]);
+  }
+  if (["usuario", "pasta pessoal", "home", "perfil"].includes(normalized)) {
+    return existingDirectory(home);
+  }
+
+  if (looksLikeFolderPath(name)) {
+    return existingDirectory(name);
+  }
+
+  return null;
+}
+
+function isSubPath(parentPath: string, childPath: string): boolean {
+  const relative = path.relative(parentPath, childPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function chooseBestFolderMatch(matches: string[]): string | null {
+  if (!matches.length) return null;
+  return [...matches].sort((a, b) => a.length - b.length || a.localeCompare(b))[0] ?? null;
+}
+
+function findFolderInsideBase(basePath: string, targetName: string): string | null {
+  const normalizedTarget = normalizeFolderName(targetName);
+  if (!normalizedTarget) return null;
+
+  if (normalizeFolderName(path.basename(basePath)) === normalizedTarget) {
+    return basePath;
+  }
+
+  const queue = [basePath];
+  const exactMatches: string[] = [];
+  const partialMatches: string[] = [];
+  let scannedDirs = 0;
+  const maxScannedDirs = 12000;
+
+  while (queue.length > 0 && scannedDirs < maxScannedDirs) {
+    const current = queue.shift();
+    if (!current) break;
+
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+      const fullPath = path.join(current, entry.name);
+      scannedDirs += 1;
+
+      const normalizedEntry = normalizeFolderName(entry.name);
+      if (normalizedEntry === normalizedTarget) exactMatches.push(fullPath);
+      else if (normalizedEntry.includes(normalizedTarget)) partialMatches.push(fullPath);
+
+      if (scannedDirs < maxScannedDirs) {
+        queue.push(fullPath);
+      }
+    }
+  }
+
+  return chooseBestFolderMatch(exactMatches) ?? chooseBestFolderMatch(partialMatches);
+}
+
+async function localizarPastaWindows(nome: string, dentroDe: string): Promise<string | null> {
+  if (os.platform() !== "win32") return null;
+
+  const requestedName = nome.trim();
+  const baseHint = dentroDe.trim();
+  if (!requestedName) return null;
+
+  const directPath = existingDirectory(requestedName);
+  if (directPath) return directPath;
+
+  if (!baseHint) {
+    return await resolveWindowsKnownFolder(requestedName);
+  }
+
+  const basePath = (await resolveWindowsKnownFolder(baseHint)) ?? existingDirectory(baseHint);
+  if (!basePath) return null;
+
+  const directInsideBase = existingDirectory(path.join(basePath, requestedName));
+  if (directInsideBase) return directInsideBase;
+
+  const knownFolder = await resolveWindowsKnownFolder(requestedName);
+  if (knownFolder && isSubPath(basePath, knownFolder)) {
+    return knownFolder;
+  }
+
+  return findFolderInsideBase(basePath, requestedName);
+}
+
+async function fecharJanelaDaPastaWindows(targetPath: string): Promise<number> {
+  if (os.platform() !== "win32") return 0;
+
+  const escapedTargetPath = targetPath.replace(/'/g, "''");
+  const ps = `
+$target = '${escapedTargetPath}'
+$shell = New-Object -ComObject Shell.Application
+$closed = 0
+foreach ($window in @($shell.Windows())) {
+  try {
+    $document = $window.Document
+    if (-not $document) { continue }
+    $folder = $document.Folder
+    if (-not $folder) { continue }
+    $self = $folder.Self
+    if (-not $self) { continue }
+    $windowPath = $self.Path
+    if ($windowPath -and [string]::Equals($windowPath, $target, [System.StringComparison]::OrdinalIgnoreCase)) {
+      $window.Quit()
+      $closed++
+    }
+  } catch {
+    # ignora janelas nao relacionadas ao Explorer
+  }
+}
+Write-Output $closed
+`;
+
+  try {
+    const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-Command", ps], {
+      encoding: "utf-8",
+      windowsHide: true,
+      timeout: 12000,
+    });
+    const count = Number.parseInt(stdout.trim(), 10);
+    return Number.isFinite(count) ? count : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function normalizeProgramName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveProgramSearchTerms(name: string): string[] {
+  const normalized = normalizeProgramName(name);
+  const aliasMap: Record<string, string[]> = {
+    calculadora: ["calculator", "calc"],
+    calc: ["calculator", "calc"],
+    "bloco de notas": ["notepad"],
+    notepad: ["notepad"],
+    paint: ["mspaint", "paint"],
+    explorador: ["explorer", "file explorer"],
+    explorer: ["explorer", "file explorer"],
+    chrome: ["chrome", "google chrome"],
+    "google chrome": ["chrome", "google chrome"],
+    edge: ["msedge", "edge", "microsoft edge"],
+    "microsoft edge": ["msedge", "edge", "microsoft edge"],
+    firefox: ["firefox"],
+    opera: ["opera"],
+    terminal: ["windows terminal", "terminal", "wt"],
+    "windows terminal": ["windows terminal", "terminal", "wt"],
+    cmd: ["cmd", "prompt de comando", "command prompt"],
+    "prompt de comando": ["cmd", "command prompt"],
+    vscode: ["code", "vs code", "visual studio code", "vscode"],
+    "vs code": ["code", "vs code", "visual studio code", "vscode"],
+    "visual studio code": ["code", "vs code", "visual studio code", "vscode"],
+  };
+
+  const terms = new Set<string>();
+  if (normalized) terms.add(normalized);
+  for (const candidate of aliasMap[normalized] ?? []) terms.add(candidate);
+  return [...terms];
+}
+
+async function alterarJanelaProgramaWindows(nome: string, acao: "minimizar" | "restaurar"): Promise<number> {
+  if (os.platform() !== "win32") return 0;
+
+  const terms = resolveProgramSearchTerms(nome);
+  if (!terms.length) return 0;
+
+  const escapedTerms = terms.map((term) => `'${term.replace(/'/g, "''")}'`).join(", ");
+  const commandValue = acao === "restaurar" ? 9 : 6;
+  const ps = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class NeroWinApi {
+  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+}
+"@
+$terms = @(${escapedTerms})
+$command = ${commandValue}
+$count = 0
+Get-Process | ForEach-Object {
+  try {
+    if ($_.MainWindowHandle -eq 0) { return }
+    $procName = $_.ProcessName.ToLowerInvariant()
+    $title = if ($_.MainWindowTitle) { $_.MainWindowTitle.ToLowerInvariant() } else { "" }
+    $match = $false
+    foreach ($term in $terms) {
+      if (($procName.Contains($term)) -or ($title.Contains($term))) {
+        $match = $true
+        break
+      }
+    }
+    if ($match) {
+      [NeroWinApi]::ShowWindowAsync($_.MainWindowHandle, $command) | Out-Null
+      $count++
+    }
+  } catch {
+    # ignora processos sem janela controlavel
+  }
+}
+Write-Output $count
+`;
+
+  try {
+    const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-Command", ps], {
+      encoding: "utf-8",
+      windowsHide: true,
+      timeout: 12000,
+    });
+    const count = Number.parseInt(stdout.trim(), 10);
+    return Number.isFinite(count) ? count : 0;
+  } catch {
+    return 0;
   }
 }
 

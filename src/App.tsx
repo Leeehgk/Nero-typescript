@@ -1,5 +1,7 @@
 /// Nero: um avatar 3D que fala com LLMs locais ou na nuvem (Groq).
 import { Component, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
+import { isApprovalAffirmative, isApprovalNegative, resolveApproval, sendChatMessage } from "./api/nero";
+import type { AgentApiResponse } from "./agentTypes";
 import { OfficeScene } from "./components/OfficeScene";
 import { useNeroStore, type LlmProvider } from "./store";
 import { useNeroVoiceConversation } from "./voice/useNeroVoiceConversation";
@@ -50,8 +52,54 @@ class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState>
   }
 }
 
+function primaryButtonStyle(disabled = false) {
+  return {
+    padding: "12px 22px",
+    borderRadius: 12,
+    border: "3px solid #4a8fd4",
+    background: disabled ? "linear-gradient(180deg,#d8e9f8,#bfd4e8)" : "linear-gradient(180deg,#9fd4ff,#6bb8ff)",
+    color: "#153a5c",
+    fontWeight: 700,
+    fontSize: 18,
+    cursor: disabled ? "not-allowed" : "pointer",
+    boxShadow: disabled ? "none" : "3px 4px 0 #3a7bb8",
+    opacity: disabled ? 0.7 : 1,
+  } as const;
+}
+
+function successButtonStyle(disabled = false) {
+  return {
+    padding: "10px 16px",
+    borderRadius: 12,
+    border: "3px solid #3d8b72",
+    background: disabled ? "linear-gradient(180deg,#d9eee6,#bdd8cc)" : "linear-gradient(180deg,#9ae0c5,#66bc98)",
+    color: "#103d2e",
+    fontWeight: 700,
+    fontSize: 17,
+    cursor: disabled ? "not-allowed" : "pointer",
+    boxShadow: disabled ? "none" : "3px 4px 0 #2d6b56",
+    opacity: disabled ? 0.7 : 1,
+  } as const;
+}
+
+function dangerButtonStyle(disabled = false) {
+  return {
+    padding: "10px 16px",
+    borderRadius: 12,
+    border: "3px solid #c75c5c",
+    background: disabled ? "linear-gradient(180deg,#f5dede,#e2c5c5)" : "linear-gradient(180deg,#ffb4b4,#e88888)",
+    color: "#4a2020",
+    fontWeight: 700,
+    fontSize: 17,
+    cursor: disabled ? "not-allowed" : "pointer",
+    boxShadow: disabled ? "none" : "3px 4px 0 #a04444",
+    opacity: disabled ? 0.7 : 1,
+  } as const;
+}
+
 export function App() {
   const [input, setInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiCfg, setApiCfg] = useState<{
     localModel?: string;
     groqModel?: string;
@@ -60,6 +108,9 @@ export function App() {
   }>({});
   const setMood = useNeroStore((s) => s.setMood);
   const setLastReply = useNeroStore((s) => s.setLastReply);
+  const pendingApproval = useNeroStore((s) => s.pendingApproval);
+  const setPendingApproval = useNeroStore((s) => s.setPendingApproval);
+  const clearPendingApproval = useNeroStore((s) => s.clearPendingApproval);
   const activateComputer = useNeroStore((s) => s.activateComputer);
   const lastReply = useNeroStore((s) => s.lastReply);
   const mood = useNeroStore((s) => s.mood);
@@ -95,78 +146,89 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    // Efeito para retornar ao estado 'idle' após um tempo.
-    // Isso centraliza a lógica, evita múltiplos `setTimeout` e é mais seguro.
-    // O 'mood' é o gatilho perfeito para as animações do personagem na OfficeScene.
-    // - "thinking": Correr para o computador.
-    // - "speaking": Animação de fala.
-    // - "idle": Movimentação aleatória pelo cenário.
     if (mood === "speaking" || mood === "success" || mood === "error") {
       const timer = setTimeout(() => {
         setMood("idle");
-      }, 4000); // Tempo estendido para dar espaço para animações e falas.
+      }, 4000);
 
-      return () => clearTimeout(timer); // Limpa o timer se o humor mudar ou o componente desmontar.
+      return () => clearTimeout(timer);
     }
   }, [mood, setMood]);
 
+  const applyAgentResponse = useCallback(
+    (data: AgentApiResponse) => {
+      const reply = data.reply ?? data.error ?? "Sem resposta.";
+      setLastReply(reply);
+      if (data.pendingApproval) setPendingApproval(data.pendingApproval);
+      else clearPendingApproval();
+
+      if (data.agentState === "error") setMood("error");
+      else if (data.agentState === "success") setMood("success");
+      else setMood("speaking");
+      activateComputer();
+    },
+    [activateComputer, clearPendingApproval, setLastReply, setMood, setPendingApproval]
+  );
+
+  const submitApproval = useCallback(
+    async (approved: boolean) => {
+      const current = useNeroStore.getState().pendingApproval;
+      if (!current || isSubmitting) return;
+
+      setIsSubmitting(true);
+      setMood("thinking");
+      activateComputer();
+      try {
+        const data = await resolveApproval(current.id, approved);
+        applyAgentResponse(data);
+      } catch (err) {
+        console.error("Erro ao resolver aprovacao:", err);
+        setMood("error");
+        activateComputer();
+        setLastReply(err instanceof Error ? `Erro: ${err.message}` : "Nao consegui resolver a aprovacao agora.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [activateComputer, applyAgentResponse, isSubmitting, setLastReply, setMood]
+  );
+
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || isSubmitting) return;
+
     setInput("");
+    setIsSubmitting(true);
     setMood("thinking");
     activateComputer();
     try {
-      const payload: Record<string, string> = { message: text, provider: llmProvider };
-      const lm = localModel.trim();
-      const gm = groqModel.trim();
-      if (lm) payload.localModel = lm;
-      if (gm) payload.groqModel = gm;
-      const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      // Validação robusta da resposta para evitar a "tela branca" por JSON malformado.
-      const responseText = await r.text();
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error("Falha ao parsear JSON da resposta:", responseText);
-        throw new Error(`O servidor respondeu com um formato inesperado. Resposta: ${responseText.slice(0, 200)}`);
-      }
-
-      if (typeof data !== "object" || !data) {
-        throw new Error("Resposta da API em formato inválido (não é um objeto).");
-      }
-
-      const typedData = data as { reply?: string; agentState?: string; error?: string };
-      const reply = typedData.reply ?? typedData.error ?? "Sem resposta.";
-      setLastReply(reply);
-
-      if (r.ok) {
-        const st = typedData.agentState;
-        if (st === "error") setMood("error");
-        else if (st === "success") setMood("success");
-        else setMood("speaking");
-        activateComputer();
+      let data: AgentApiResponse;
+      if (pendingApproval) {
+        if (isApprovalAffirmative(text)) {
+          data = await resolveApproval(pendingApproval.id, true);
+        } else if (isApprovalNegative(text)) {
+          data = await resolveApproval(pendingApproval.id, false);
+        } else {
+          setMood("speaking");
+          activateComputer();
+          setLastReply(`Acao pendente: ${pendingApproval.summary}. Responda "sim" ou "nao", ou use os botoes.`);
+          return;
+        }
       } else {
-        setMood("error");
-        activateComputer();
+        data = await sendChatMessage(text);
       }
+      applyAgentResponse(data);
     } catch (err) {
       console.error("Erro ao enviar mensagem:", err);
       setMood("error");
       activateComputer();
       setLastReply(
-        err instanceof Error
-          ? `Erro: ${err.message}`
-          : "Não consegui falar com o servidor. Verifique o console."
+        err instanceof Error ? `Erro: ${err.message}` : "Nao consegui falar com o servidor. Verifique o console."
       );
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [activateComputer, input, llmProvider, localModel, groqModel, setLastReply, setMood]);
+  }, [activateComputer, applyAgentResponse, input, isSubmitting, pendingApproval, setLastReply, setMood]);
 
   return (
     <div
@@ -228,21 +290,18 @@ export function App() {
         }}
       >
         <div style={{ fontSize: 16, marginBottom: 6, color: "#7fd9b8" }}>Debug Movimento</div>
-        <div>mood global: <strong>{mood}</strong></div>
+        <div>
+          mood global: <strong>{mood}</strong>
+        </div>
         <div>
           alvo store: <strong>{agentTarget.x}, {agentTarget.z}</strong>
         </div>
         <div>
-          pos avatar:{" "}
-          <strong>
-            {agentDebug ? `${agentDebug.position.x}, ${agentDebug.position.z}` : "sem dados"}
-          </strong>
+          pos avatar: <strong>{agentDebug ? `${agentDebug.position.x}, ${agentDebug.position.z}` : "sem dados"}</strong>
         </div>
         <div>
           alvo interno:{" "}
-          <strong>
-            {agentDebug ? `${agentDebug.internalTarget.x}, ${agentDebug.internalTarget.z}` : "sem dados"}
-          </strong>
+          <strong>{agentDebug ? `${agentDebug.internalTarget.x}, ${agentDebug.internalTarget.z}` : "sem dados"}</strong>
         </div>
         <div>
           andando: <strong>{agentDebug ? (agentDebug.walking ? "sim" : "nao") : "?"}</strong>
@@ -273,7 +332,7 @@ export function App() {
           style={{
             pointerEvents: "auto",
             alignSelf: "flex-start",
-            maxWidth: 520,
+            maxWidth: 560,
             padding: "14px 16px",
             borderRadius: 14,
             background: "linear-gradient(180deg, rgba(255,252,245,0.97) 0%, rgba(232,245,236,0.96) 100%)",
@@ -284,14 +343,6 @@ export function App() {
             boxShadow: "4px 6px 0 #3d8b72, 8px 12px 24px rgba(0,0,0,0.2)",
           }}
         >
-          {/*
-            COMO USAR O 'MOOD' PARA ANIMAÇÕES NA OfficeScene.tsx:
-            1. Dentro de OfficeScene, use o hook da store: `const mood = useNeroStore(s => s.mood);`
-            2. Use um `useEffect` para observar as mudanças no `mood`: `useEffect(() => { ... }, [mood]);`
-            3. Dentro do `useEffect`, dispare a animação correspondente:
-               - if (mood === 'thinking') { // lógica para correr para o computador }
-               - if (mood === 'idle') { // lógica para andar aleatoriamente }
-          */}
           <div
             style={{
               display: "flex",
@@ -306,7 +357,7 @@ export function App() {
           >
             <span style={{ color: "#1e6b54" }}>NERO</span>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, fontSize: 16 }}>
-              Cérebro:
+              Cerebro:
               <select
                 value={llmProvider}
                 onChange={(e) => setLlmProvider(e.target.value as LlmProvider)}
@@ -371,7 +422,7 @@ export function App() {
           </div>
           {apiCfg.groqConfigured === false && (
             <div style={{ fontSize: 14, color: "#a60", marginBottom: 6 }}>
-              Groq: sem <code>GROQ_API_KEY</code> no servidor — a escolha funciona, mas o envio vai falhar até
+              Groq: sem <code>GROQ_API_KEY</code> no servidor. A escolha funciona, mas o envio vai falhar ate
               configurares o .env.
             </div>
           )}
@@ -380,25 +431,55 @@ export function App() {
             <code>EDGE_TTS_VOICE</code> no .env)
           </div>
           <div style={{ fontSize: 15, opacity: 0.88, marginBottom: 8, color: "#355e4f" }}>
-            Clica no chão para mover o Nero · <strong>WASD</strong> ou <strong>setas</strong> também andam um
-            azulejo.
+            Clica no chao para mover o Nero. <strong>WASD</strong> ou <strong>setas</strong> tambem andam um azulejo.
           </div>
           <div style={{ fontSize: 15, opacity: 0.85, marginBottom: 6 }}>
             estado: <strong>{mood}</strong>
             {voicePhase !== "off" && (
               <>
                 {" "}
-                · voz: <strong>{voicePhase}</strong>
+                . voz: <strong>{voicePhase}</strong>
               </>
             )}
           </div>
-          {voiceError && (
-            <div style={{ color: "#c44", marginBottom: 8, fontSize: 16 }}>{voiceError}</div>
+          {voiceError && <div style={{ color: "#c44", marginBottom: 8, fontSize: 16 }}>{voiceError}</div>}
+          {subtitle && <div style={{ opacity: 0.88, marginBottom: 8, fontSize: 16 }}>{subtitle}</div>}
+          {pendingApproval && (
+            <div
+              style={{
+                marginBottom: 10,
+                padding: "10px 12px",
+                borderRadius: 12,
+                background: "rgba(255, 248, 224, 0.95)",
+                border: "2px solid #d1ab42",
+                color: "#5c4407",
+                boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+              }}
+            >
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Aguardando aprovacao</div>
+              <div style={{ fontSize: 16, marginBottom: 6 }}>{pendingApproval.summary}</div>
+              <div style={{ fontSize: 15, whiteSpace: "pre-wrap", opacity: 0.9 }}>{pendingApproval.prompt}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => void submitApproval(true)}
+                  disabled={isSubmitting}
+                  style={successButtonStyle(isSubmitting)}
+                >
+                  Aprovar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitApproval(false)}
+                  disabled={isSubmitting}
+                  style={dangerButtonStyle(isSubmitting)}
+                >
+                  Negar
+                </button>
+              </div>
+            </div>
           )}
-          {subtitle && (
-            <div style={{ opacity: 0.88, marginBottom: 8, fontSize: 16 }}>{subtitle}</div>
-          )}
-          {lastReply || "Fala ou escreve — voz neural (Edge) pelo servidor."}
+          {lastReply || "Fala ou escreve. A voz neural do Edge continua sendo servida pelo backend."}
         </div>
         <div
           style={{
@@ -406,81 +487,40 @@ export function App() {
             display: "flex",
             flexWrap: "wrap",
             gap: 10,
-            maxWidth: 580,
+            maxWidth: 620,
             alignItems: "center",
           }}
         >
           {voicePhase === "off" ? (
-            <button
-              type="button"
-              onClick={startVoice}
-              style={{
-                padding: "12px 18px",
-                borderRadius: 12,
-                border: "3px solid #3d8b72",
-                background: "linear-gradient(180deg,#7fd9b8,#5aad8f)",
-                color: "#103d2e",
-                fontWeight: 700,
-                fontSize: 18,
-                cursor: "pointer",
-                boxShadow: "3px 4px 0 #2d6b56",
-              }}
-            >
+            <button type="button" onClick={startVoice} disabled={isSubmitting} style={successButtonStyle(isSubmitting)}>
               Ativar conversa por voz
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={stopVoice}
-              style={{
-                padding: "12px 18px",
-                borderRadius: 12,
-                border: "3px solid #c75c5c",
-                background: "linear-gradient(180deg,#ffb4b4,#e88888)",
-                color: "#4a2020",
-                fontWeight: 700,
-                fontSize: 18,
-                cursor: "pointer",
-                boxShadow: "3px 4px 0 #a04444",
-              }}
-            >
+            <button type="button" onClick={stopVoice} disabled={isSubmitting} style={dangerButtonStyle(isSubmitting)}>
               Parar voz
             </button>
           )}
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Escreve aqui…"
+            onKeyDown={(e) => e.key === "Enter" && void send()}
+            placeholder={pendingApproval ? 'Responda "sim" ou "nao"...' : "Escreve aqui..."}
+            disabled={isSubmitting}
             style={{
               flex: 1,
-              minWidth: 200,
+              minWidth: 220,
               padding: "12px 14px",
               borderRadius: 12,
               border: "3px solid #8ec4b2",
-              background: "#fffefb",
+              background: isSubmitting ? "#edf3ef" : "#fffefb",
               color: "#2d4a3e",
               fontSize: 18,
               outline: "none",
               fontFamily: "inherit",
             }}
           />
-          <button
-            type="button"
-            onClick={send}
-            style={{
-              padding: "12px 22px",
-              borderRadius: 12,
-              border: "3px solid #4a8fd4",
-              background: "linear-gradient(180deg,#9fd4ff,#6bb8ff)",
-              color: "#153a5c",
-              fontWeight: 700,
-              fontSize: 18,
-              cursor: "pointer",
-              boxShadow: "3px 4px 0 #3a7bb8",
-            }}
-          >
-            Enviar
+          <button type="button" onClick={() => void send()} disabled={isSubmitting} style={primaryButtonStyle(isSubmitting)}>
+            {pendingApproval ? "Responder" : "Enviar"}
           </button>
         </div>
       </div>

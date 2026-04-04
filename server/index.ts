@@ -1,9 +1,9 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import { runAgentTurn } from "./agent.js";
+import { resolvePendingApprovalDecision, runAgentTurn } from "./agent.js";
 import { lerConfigNome } from "./config.js";
-import { getClient, parseProvider, resolveModel, type LlmProvider } from "./llm.js";
+import { getClient, parseProvider, resolveModel, resolveVisionModel, type LlmProvider } from "./llm.js";
 import {
   carregarMemoria,
   carregarPerfil,
@@ -18,7 +18,9 @@ import { synthesizeEdgeMp3 } from "./tts-edge.js";
 const PORT = Number(process.env.PORT) || 8787;
 const LM_URL = process.env.LOCAL_LM_URL ?? "http://127.0.0.1:1234/v1";
 const LM_MODEL = process.env.LOCAL_LM_MODEL ?? "local-model";
+const LOCAL_VISION_MODEL = process.env.LOCAL_VISION_MODEL?.trim() || LM_MODEL;
 const GROQ_MODEL = process.env.GROQ_MODEL ?? "llama-3.1-8b-instant";
+const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL?.trim() || GROQ_MODEL;
 
 const app = express();
 app.use(cors());
@@ -30,8 +32,8 @@ let perfil = carregarPerfil();
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
-    local: { baseURL: LM_URL, model: LM_MODEL },
-    groq: { model: GROQ_MODEL, configured: Boolean(process.env.GROQ_API_KEY?.trim()) },
+    local: { baseURL: LM_URL, model: LM_MODEL, visionModel: LOCAL_VISION_MODEL },
+    groq: { model: GROQ_MODEL, visionModel: GROQ_VISION_MODEL, configured: Boolean(process.env.GROQ_API_KEY?.trim()) },
   });
 });
 
@@ -40,8 +42,10 @@ app.get("/api/config", (_req, res) => {
   res.json({
     groqConfigured: Boolean(key),
     localModel: LM_MODEL,
+    localVisionModel: LOCAL_VISION_MODEL,
     localUrl: LM_URL,
     groqModel: GROQ_MODEL,
+    groqVisionModel: GROQ_VISION_MODEL,
     edgeTtsVoice: process.env.EDGE_TTS_VOICE?.trim() || "pt-BR-AntonioNeural",
   });
 });
@@ -100,6 +104,7 @@ app.post("/api/chat", async (req, res) => {
 
   const client = getClient(provider);
   const model = resolveModel(provider, req.body);
+  const visionModel = resolveVisionModel(provider, model);
 
   const nome = lerConfigNome();
   const lower = message.toLowerCase();
@@ -130,7 +135,8 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
-    const { reply, perfil: p2, toolCalls } = await runAgentTurn(client, model, nome, perfil, message);
+    const result = await runAgentTurn(client, model, visionModel, nome, perfil, message);
+    const { reply, perfil: p2, toolCalls, agentState, pendingApproval } = result;
     perfil = p2;
 
     historico.push({ role: "user", content: message });
@@ -138,9 +144,40 @@ app.post("/api/chat", async (req, res) => {
     if (historico.length > 30) historico = historico.slice(-30);
     salvarMemoria(historico);
 
-    const agentState = toolCalls.length > 0 ? "success" : "speaking";
+    res.json({ reply, agentState, toolCalls, provider, pendingApproval });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({
+      reply: `Erro: ${e instanceof Error ? e.message : String(e)}`,
+      agentState: "error",
+      toolCalls: [],
+    });
+  }
+});
 
-    res.json({ reply, agentState, toolCalls, provider });
+app.post("/api/approval", async (req, res) => {
+  const approvalId = String(req.body?.approvalId ?? "").trim();
+  if (!approvalId) {
+    res.status(400).json({
+      reply: "approvalId obrigatorio",
+      agentState: "error",
+      toolCalls: [],
+    });
+    return;
+  }
+
+  try {
+    const approved = Boolean(req.body?.approved);
+    const result = await resolvePendingApprovalDecision(approvalId, approved);
+
+    historico.push({
+      role: "assistant",
+      content: result.reply,
+    });
+    if (historico.length > 30) historico = historico.slice(-30);
+    salvarMemoria(historico);
+
+    res.json(result);
   } catch (e) {
     console.error(e);
     res.status(500).json({

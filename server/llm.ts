@@ -20,6 +20,16 @@ export function resolveModel(provider: LlmProvider, body: unknown): string {
   return m || process.env.LOCAL_LM_MODEL || "local-model";
 }
 
+export function resolveVisionModel(provider: LlmProvider, fallbackModel: string): string {
+  if (provider === "groq") {
+    const model = process.env.GROQ_VISION_MODEL?.trim();
+    return model || fallbackModel;
+  }
+
+  const model = process.env.LOCAL_VISION_MODEL?.trim();
+  return model || fallbackModel;
+}
+
 export function getClient(provider: LlmProvider): OpenAI {
   if (provider === "groq") {
     const key = process.env.GROQ_API_KEY?.trim();

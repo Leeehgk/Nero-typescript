@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { PendingApproval } from "./agentTypes";
 
 export type AgentMood = "idle" | "listening" | "thinking" | "speaking" | "success" | "error";
 
@@ -31,6 +32,7 @@ type Store = {
   mood: AgentMood;
   lastReply: string;
   llmProvider: LlmProvider;
+  pendingApproval: PendingApproval | null;
   /** Nome do modelo (vazio = usa .env no servidor). */
   localModel: string;
   groqModel: string;
@@ -44,6 +46,8 @@ type Store = {
   activateComputer: (durationMs?: number) => void;
   setMood: (m: AgentMood) => void;
   setLastReply: (s: string) => void;
+  setPendingApproval: (approval: PendingApproval | null) => void;
+  clearPendingApproval: () => void;
   setLlmProvider: (p: LlmProvider) => void;
   setLocalModel: (s: string) => void;
   setGroqModel: (s: string) => void;
@@ -55,6 +59,7 @@ export const useNeroStore = create<Store>()(
       mood: "idle" as AgentMood,
       lastReply: "",
       llmProvider: "local" as LlmProvider,
+      pendingApproval: null,
       localModel: "",
       groqModel: "",
       agentTarget: { x: 1, z: 1 },
@@ -76,6 +81,8 @@ export const useNeroStore = create<Store>()(
       },
       setMood: (mood) => set({ mood }),
       setLastReply: (lastReply) => set({ lastReply }),
+      setPendingApproval: (pendingApproval) => set({ pendingApproval }),
+      clearPendingApproval: () => set({ pendingApproval: null }),
       setLlmProvider: (llmProvider) => set({ llmProvider }),
       setLocalModel: (localModel) => set({ localModel }),
       setGroqModel: (groqModel) => set({ groqModel }),

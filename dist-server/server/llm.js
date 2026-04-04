@@ -15,6 +15,14 @@ export function resolveModel(provider, body) {
     const m = typeof b.localModel === "string" ? b.localModel.trim() : "";
     return m || process.env.LOCAL_LM_MODEL || "local-model";
 }
+export function resolveVisionModel(provider, fallbackModel) {
+    if (provider === "groq") {
+        const model = process.env.GROQ_VISION_MODEL?.trim();
+        return model || fallbackModel;
+    }
+    const model = process.env.LOCAL_VISION_MODEL?.trim();
+    return model || fallbackModel;
+}
 export function getClient(provider) {
     if (provider === "groq") {
         const key = process.env.GROQ_API_KEY?.trim();
