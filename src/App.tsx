@@ -3,6 +3,8 @@ import { Component, useCallback, useEffect, useState, type ErrorInfo, type React
 import { isApprovalAffirmative, isApprovalNegative, resolveApproval, sendChatMessage } from "./api/nero";
 import type { AgentApiResponse } from "./agentTypes";
 import { OfficeScene } from "./components/OfficeScene";
+import { FurnitureStorePanel } from "./components/FurnitureStorePanel";
+import { StylePanel } from "./components/StylePanel";
 import { useNeroStore, type LlmProvider } from "./store";
 import { useNeroVoiceConversation } from "./voice/useNeroVoiceConversation";
 
@@ -100,6 +102,8 @@ function dangerButtonStyle(disabled = false) {
 export function App() {
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showStore, setShowStore] = useState(false);
+  const [showStylePanel, setShowStylePanel] = useState(false);
   const [apiCfg, setApiCfg] = useState<{
     localModel?: string;
     groqModel?: string;
@@ -316,6 +320,8 @@ export function App() {
           </strong>
         </div>
       </div>
+      {showStore && <FurnitureStorePanel onClose={() => setShowStore(false)} />}
+      {showStylePanel && <StylePanel onClose={() => setShowStylePanel(false)} />}
       <div
         style={{
           position: "absolute",
@@ -521,6 +527,12 @@ export function App() {
           />
           <button type="button" onClick={() => void send()} disabled={isSubmitting} style={primaryButtonStyle(isSubmitting)}>
             {pendingApproval ? "Responder" : "Enviar"}
+          </button>
+          <button type="button" onClick={() => setShowStore(!showStore)} style={successButtonStyle(false)}>
+            🛒 Loja
+          </button>
+          <button type="button" onClick={() => setShowStylePanel(!showStylePanel)} style={primaryButtonStyle(false)}>
+            🎨 Estilo
           </button>
         </div>
       </div>

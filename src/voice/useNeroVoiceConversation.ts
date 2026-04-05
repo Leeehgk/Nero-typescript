@@ -105,9 +105,24 @@ export function useNeroVoiceConversation() {
     r.lang = "pt-BR";
     r.continuous = true;
     r.interimResults = false;
-    r.onresult = () => {
-      cancelSpeech();
-      stopInterruptListener();
+    r.onresult = (ev: SpeechRecognitionEvent) => {
+      let isInterrupt = false;
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const transcript = ev.results[i][0].transcript.toLowerCase();
+        if (
+          transcriptHasWakeWord(transcript) ||
+          transcript.match(/\b(pare|chega|silêncio|psiu|shh|deu|parou|tá bom o áudio)\b/i) ||
+          transcript.match(/\b(para de falar|para com isso)\b/i)
+        ) {
+          isInterrupt = true;
+          break;
+        }
+      }
+      
+      if (isInterrupt) {
+        cancelSpeech();
+        stopInterruptListener();
+      }
     };
     r.onerror = () => {
       /* noop */

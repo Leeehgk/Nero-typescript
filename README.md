@@ -13,34 +13,37 @@ O projeto roda com:
 
 ## Estado atual
 
-O README abaixo ja reflete o comportamento atual do projeto, incluindo as correcoes recentes:
+O README abaixo ja reflete o comportamento atual do projeto, incluindo as implementacoes massivas recentes:
 
+- **Sistema Modular de Moveis**: Lote 1 introduzido com 12 tipos de mobília de luxo e plantas, mecanica de arrastar e soltar (Drag and Drop) no grid 3D, salvar no `localStorage` e rotacionar itens livremente.
+- **Paredes Magneticas**: Quadros e itens de parede detectam os contornos da sala automaticamente e "grudam" elevados na angulacao certa.
+- **Painel de Estilos (Multiverso)**: O mundo do Nero agora aceita temas globais dinâmicos (Chao, paredes e ceu) e Skins para o Avatar, tudo configurado em tempo real pelo painel `StylePanel`.
+- **Cosmetico do Avatar**: Adicionada a skin de mascara Hacker (Guy Fawkes) usando geracao procedural de geometria no `PixelAgent` que acompanha o agente enquanto movimenta a cabeca.
+- **Voice Interruption Inteligente**: O TTS foi calibrado para usar palavras-chave imperativas como freio (`"pare"`, `"shh"`...), impedindo que as caixas de som entrem num loop infinito causando a gagueira por corte precoce em respostas longas.
 - TTS do servidor mais estavel, com fallback automatico de voz em portugues quando `pt-BR-AntonioNeural` falha.
-- Conversa por voz com microfone rearmado automaticamente enquanto o modo de voz estiver ativo.
 - Recuperacao de tool calls no formato `<function=...>` quando o provedor retorna `tool_use_failed`.
 - Bloqueio de ferramentas sensiveis quando o pedido do usuario nao for explicito.
-- Interface mais estavel, com baloes fora do `Canvas` e `error boundary` para evitar tela branca.
 - PixelAgent com locomocao aleatoria funcional, ida ao PC durante interacoes e pausa controlada apos responder.
-- Tela do monitor acende por 10 segundos durante acoes do Nero sem iluminar o ambiente inteiro.
-- Cena 3D ajustada para evitar areas lavadas/brancas no mapa.
 
 ## Principais recursos
+
+### Personalizacao e Ambiente 3D
+- **Temas Dinamicos da Sala**: Alterne entre a vibracao original ("Common"), a tematica escura cybernetica iluminada por neons emissivos ("Dark Hacker"), ou o modo luxuoso ("Suite Premium").
+- **Loja de Moveis**: Arraste, drope e gire itens como sofas, TVs, quadros e plantas no grid de `(-5, 5)` com os dados salvos nativamente.
+- **Skins de Agente**: Visual expansivel em camadas, atualmente introduzindo mascara de Hacker "Anonymous" presa ao guimbal de visao 3D do agente.
 
 ### Voz
 
 - Conversa por voz em portugues do Brasil.
-- Wake word com variacoes de "Nero".
+- Wake word com variacoes de "Nero" ou interrupcao brusca (ex. "Pare", "Silencio") para matar longas respostas de TTS.
 - TTS neural servido por `POST /api/tts`.
 - Fallback para TTS do navegador se o audio do servidor falhar.
-- Interrupcao da fala atual quando o usuario volta a falar.
-- Modo de voz continuo: o microfone pausa durante processamento/fala e volta sozinho depois.
 
-### LLM
-
+### Memoria e LLM
 - Alternancia entre provedor local e Groq pela interface.
-- Modelo configuravel por `.env` ou pelos campos da UI.
 - Respostas curtas por padrao para manter a conversa rapida.
-- Aprendizado em segundo plano com extracao de fatos sobre o usuario.
+- Memoria curta persistida em `memoria_nero.json` e `perfil_nero.json`.
+- Consulta e construcao iterativa dos fatos em segundo plano pelo proprio Nero.
 
 ### Memoria
 
@@ -191,19 +194,20 @@ npm run preview
 
 ### Cliente
 
-- `src/App.tsx`: layout principal, campos de entrada, selecao de provedor, estado visual e painel de debug
-- `src/components/OfficeScene.tsx`: cenario 3D isometrico
-- `src/components/PixelAgent.tsx`: avatar, movimento e reacoes ao mood
-- `src/voice/useNeroVoiceConversation.ts`: ciclo de voz, standby, wake word, escuta, TTS e rearme do microfone
-- `src/voice/tts.ts`: TTS do cliente com fetch para `/api/tts` e fallback local
+- `src/App.tsx`: layout principal, estado visual, botoes de Loja e Estilo e painel de debug
+- `src/components/OfficeScene.tsx`: cenario 3D isometrico responsivo por `ThemeMode`
+- `src/components/PixelAgent.tsx`: avatar, guimbal geometrico de skins (`SkinMode`), movimento e reacoes
+- `src/components/FurnitureRegistry.tsx`: catalogo mestre de modelos e comportamento magico das paredes (.tsx)
+- `src/components/StylePanel.tsx`: UI lateral flutuante de Customizacao dos componentes visuais  
+- `src/voice/useNeroVoiceConversation.ts`: ciclo de standby, regexes de interrupção rigorosas, TTS callback e rearme do microfone
+- `src/voice/tts.ts`: abort controller e audio handling client-side com Fallbacks
 
 ### Servidor
 
 - `server/index.ts`: API Express e rotas principais
-- `server/agent.ts`: orchestration do LLM, recuperacao de tool call e regras de seguranca
-- `server/tools.ts`: ferramentas que executam acoes locais e consultas externas
-- `server/tts-edge.ts`: sintese do Edge TTS com fallback de voz
-- `server/memory.ts`: memoria curta, perfil e aprendizado
+- `server/agent.ts`: orchestracao do LLM e intencoes isoladas de ferramenta
+- `server/tools.ts`: automacoes de Windows (Browser, apps, shell, audio, files)
+- `server/tts-edge.ts`: sintese de bytes e stream pro front-end
 
 ## API
 
