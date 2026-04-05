@@ -305,6 +305,212 @@ export function Board({ id, position, rotation }: { id: string; position: [numbe
   );
 }
 
+// ================= NOVOS (LOTE 2) ================= //
+
+export function Bed({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 0.2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.0, 0.4, 2.2]} />
+        <meshStandardMaterial color="#3e2723" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.45, 0.2]} castShadow receiveShadow>
+        <boxGeometry args={[1.9, 0.15, 1.8]} />
+        <meshStandardMaterial color="#f5f5f5" roughness={0.9} />
+      </mesh>
+      {/* Travesseiros */}
+      <mesh position={[-0.45, 0.55, -0.7]} castShadow>
+        <boxGeometry args={[0.7, 0.15, 0.4]} />
+        <meshStandardMaterial color="#e0e0e0" roughness={0.9} />
+      </mesh>
+      <mesh position={[0.45, 0.55, -0.7]} castShadow>
+        <boxGeometry args={[0.7, 0.15, 0.4]} />
+        <meshStandardMaterial color="#e0e0e0" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+export function Wardrobe({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 1.4, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.2, 2.8, 1.0]} />
+        <meshStandardMaterial color="#4e342e" roughness={0.7} />
+      </mesh>
+      {/* Portas */}
+      <mesh position={[-0.55, 1.4, 0.51]}>
+        <planeGeometry args={[1.05, 2.7]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.6} />
+      </mesh>
+      <mesh position={[0.55, 1.4, 0.51]}>
+        <planeGeometry args={[1.05, 2.7]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+export function DiningTable({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 0.75, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.5, 0.08, 1.4]} />
+        <meshStandardMaterial color="#212121" roughness={0.3} metalness={0.2} />
+      </mesh>
+      {/* Perna Central */}
+      <mesh position={[0, 0.38, 0]} castShadow>
+        <boxGeometry args={[1.8, 0.75, 0.4]} />
+        <meshStandardMaterial color="#111111" />
+      </mesh>
+    </group>
+  );
+}
+
+export function Arcade({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 1.0, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.0, 2.0, 1.1]} />
+        <meshStandardMaterial color="#e53935" roughness={0.5} />
+      </mesh>
+      {/* Tela */}
+      <mesh position={[0, 1.3, 0.4]} rotation={[-0.3, 0, 0]}>
+        <planeGeometry args={[0.8, 0.6]} />
+        <meshBasicMaterial color="#00bcd4" />
+      </mesh>
+      {/* Teclado Arcade */}
+      <mesh position={[0, 0.9, 0.6]} rotation={[0.4, 0, 0]} castShadow>
+        <boxGeometry args={[0.9, 0.1, 0.4]} />
+        <meshStandardMaterial color="#212121" />
+      </mesh>
+    </group>
+  );
+}
+
+export function Nightstand({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.7, 0.6, 0.7]} />
+        <meshStandardMaterial color="#6d4c41" roughness={0.8} />
+      </mesh>
+      {/* Gavetas */}
+      <mesh position={[0, 0.4, 0.36]}>
+        <planeGeometry args={[0.6, 0.2]} />
+        <meshStandardMaterial color="#5d4037" />
+      </mesh>
+    </group>
+  );
+}
+
+export function Bonsai({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      {/* Vaso */}
+      <mesh position={[0, 0.1, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.6, 0.2, 0.4]} />
+        <meshStandardMaterial color="#455a64" roughness={0.6} />
+      </mesh>
+      {/* Tronco */}
+      <mesh position={[0, 0.35, 0]} castShadow>
+        <cylinderGeometry args={[0.04, 0.06, 0.5, 5]} />
+        <meshStandardMaterial color="#3e2723" roughness={0.9} />
+      </mesh>
+      {/* Folhas */}
+      <mesh position={[0, 0.6, 0]} castShadow>
+        <sphereGeometry args={[0.25, 8, 8]} />
+        <meshStandardMaterial color="#2e7d32" roughness={0.9} />
+      </mesh>
+      <mesh position={[0.2, 0.5, 0.1]} castShadow>
+        <sphereGeometry args={[0.2, 8, 8]} />
+        <meshStandardMaterial color="#1b5e20" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+export function Mirror({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 1.0, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.0, 2.0, 0.1]} />
+        <meshStandardMaterial color="#795548" roughness={0.7} />
+      </mesh>
+      {/* Reflexo falso */}
+      <mesh position={[0, 1.0, 0.06]}>
+        <planeGeometry args={[0.8, 1.8]} />
+        <meshStandardMaterial color="#b0bec5" metalness={0.9} roughness={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+export function Statue({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 0.15, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.6, 0.3, 0.6]} />
+        <meshStandardMaterial color="#212121" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.8, 0]} castShadow>
+        <cylinderGeometry args={[0.2, 0.4, 1.2, 6]} />
+        <meshStandardMaterial color="#cfd8dc" metalness={0.3} roughness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+export function WallClock({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 0, 0.05]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.4, 0.4, 0.1, 16]} />
+        <meshStandardMaterial color="#212121" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 0, 0.11]}>
+        <circleGeometry args={[0.35, 16]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.9} />
+      </mesh>
+      {/* Ponteiros */}
+      <mesh position={[0, 0.08, 0.12]}>
+        <planeGeometry args={[0.02, 0.16]} />
+        <meshBasicMaterial color="#d32f2f" />
+      </mesh>
+    </group>
+  );
+}
+
+export function Speaker({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+  const events = useFurnitureEvents(id, rotation);
+  return (
+    <group position={position} rotation={rotation} {...events}>
+      <mesh position={[0, 0.6, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.5, 1.2, 0.5]} />
+        <meshStandardMaterial color="#111111" roughness={0.6} />
+      </mesh>
+      {/* Woofers */}
+      <mesh position={[0, 0.8, 0.26]}>
+        <circleGeometry args={[0.15, 16]} />
+        <meshStandardMaterial color="#424242" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.3, 0.26]}>
+        <circleGeometry args={[0.15, 16]} />
+        <meshStandardMaterial color="#424242" roughness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
 // ================= RENDERIZADOR PRINCIPAL ================= //
 
 export function HabboOfficeFurniture() {
@@ -327,6 +533,16 @@ export function HabboOfficeFurniture() {
           case "lamp": return <Lamp key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           case "coffeetable": return <CoffeeTable key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           case "tv": return <Tv key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "bed": return <Bed key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "wardrobe": return <Wardrobe key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "diningtable": return <DiningTable key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "arcade": return <Arcade key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "nightstand": return <Nightstand key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "bonsai": return <Bonsai key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "mirror": return <Mirror key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "statue": return <Statue key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "wall_clock": return <WallClock key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "speaker": return <Speaker key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           default: return null;
         }
       })}

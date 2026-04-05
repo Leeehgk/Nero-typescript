@@ -21,7 +21,17 @@ export type FurnitureType =
   | "sofa" 
   | "lamp" 
   | "coffeetable" 
-  | "tv";
+  | "tv"
+  | "bed"
+  | "wardrobe"
+  | "diningtable"
+  | "arcade"
+  | "nightstand"
+  | "bonsai"
+  | "mirror"
+  | "statue"
+  | "wall_clock"
+  | "speaker";
 
 export interface FurnitureItem {
   id: string;

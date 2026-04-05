@@ -9,6 +9,7 @@ export function isSolid(type: FurnitureType): boolean {
     case "rug":
     case "painting":
     case "board":
+    case "wall_clock":
       return false; // Pode pisar ou passar por baixo
     default:
       return true;
@@ -39,6 +40,24 @@ export function getOccupiedTiles(item: FurnitureItem): AgentGrid[] {
       widthDef = 1.6; depthDef = 0.6; break;
     case "coffeetable":
       widthDef = 1.6; depthDef = 1.0; break;
+    case "bed":
+      widthDef = 2.0; depthDef = 2.2; break;
+    case "wardrobe":
+      widthDef = 2.2; depthDef = 1.0; break;
+    case "diningtable":
+      widthDef = 2.5; depthDef = 1.4; break;
+    case "arcade":
+      widthDef = 1.0; depthDef = 1.1; break;
+    case "nightstand":
+      widthDef = 0.7; depthDef = 0.7; break;
+    case "bonsai":
+      widthDef = 0.6; depthDef = 0.4; break;
+    case "speaker":
+      widthDef = 0.5; depthDef = 0.5; break;
+    case "mirror":
+      widthDef = 1.0; depthDef = 0.1; break;
+    case "statue":
+      widthDef = 0.6; depthDef = 0.6; break;
     default:
       // Plant, Lamp, Globe...
       widthDef = 0.6; depthDef = 0.6; break;
