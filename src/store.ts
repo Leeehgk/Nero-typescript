@@ -7,7 +7,7 @@ export type AgentMood = "idle" | "listening" | "thinking" | "speaking" | "succes
 export type ThemeMode = "common" | "hacker" | "premium";
 export type SkinMode = "default" | "hacker";
 
-export type LlmProvider = "local" | "groq";
+export type LlmProvider = "local" | "groq" | "qwen";
 
 export type FurnitureType = 
   | "desk" 
@@ -81,6 +81,7 @@ type Store = {
   /** Nome do modelo (vazio = usa .env no servidor). */
   localModel: string;
   groqModel: string;
+  qwenModel: string;
   /** Destino de movimento (centro do azulejo). */
   agentTarget: AgentGrid;
   agentDebug: AgentDebug | null;
@@ -98,6 +99,7 @@ type Store = {
   setLlmProvider: (p: LlmProvider) => void;
   setLocalModel: (s: string) => void;
   setGroqModel: (s: string) => void;
+  setQwenModel: (s: string) => void;
   furnitureList: FurnitureItem[];
   addFurniture: (item: Omit<FurnitureItem, "id">) => void;
   removeFurniture: (id: string) => void;
@@ -119,6 +121,7 @@ export const useNeroStore = create<Store>()(
       pendingApproval: null,
       localModel: "",
       groqModel: "",
+      qwenModel: "",
       furnitureList: defaultFurniture,
       addFurniture: (item) => {
         set((state) => ({
@@ -164,6 +167,7 @@ export const useNeroStore = create<Store>()(
       setLlmProvider: (llmProvider) => set({ llmProvider }),
       setLocalModel: (localModel) => set({ localModel }),
       setGroqModel: (groqModel) => set({ groqModel }),
+      setQwenModel: (qwenModel) => set({ qwenModel }),
       draggingFurnitureId: null,
       setDraggingFurnitureId: (draggingFurnitureId) => set({ draggingFurnitureId }),
       themeMode: "common",
@@ -177,6 +181,7 @@ export const useNeroStore = create<Store>()(
         llmProvider: s.llmProvider,
         localModel: s.localModel,
         groqModel: s.groqModel,
+        qwenModel: s.qwenModel,
         furnitureList: s.furnitureList,
       }),
     }

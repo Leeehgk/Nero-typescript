@@ -108,7 +108,9 @@ export function App() {
   const [apiCfg, setApiCfg] = useState<{
     localModel?: string;
     groqModel?: string;
+    qwenModel?: string;
     groqConfigured?: boolean;
+    qwenConfigured?: boolean;
     edgeTtsVoice?: string;
   }>({});
   const setMood = useNeroStore((s) => s.setMood);
@@ -125,8 +127,10 @@ export function App() {
   const setLlmProvider = useNeroStore((s) => s.setLlmProvider);
   const localModel = useNeroStore((s) => s.localModel);
   const groqModel = useNeroStore((s) => s.groqModel);
+  const qwenModel = useNeroStore((s) => s.qwenModel);
   const setLocalModel = useNeroStore((s) => s.setLocalModel);
   const setGroqModel = useNeroStore((s) => s.setGroqModel);
+  const setQwenModel = useNeroStore((s) => s.setQwenModel);
 
   const { phase: voicePhase, subtitle, voiceError, startVoice, stopVoice } = useNeroVoiceConversation();
 
@@ -142,8 +146,10 @@ export function App() {
       .then(
         (d: {
           groqConfigured?: boolean;
+          qwenConfigured?: boolean;
           localModel?: string;
           groqModel?: string;
+          qwenModel?: string;
           edgeTtsVoice?: string;
         }) => setApiCfg(d)
       )
@@ -381,6 +387,7 @@ export function App() {
               >
                 <option value="local">LM Studio (local)</option>
                 <option value="groq">Groq (nuvem)</option>
+                <option value="qwen">Qwen (OpenRouter)</option>
               </select>
             </label>
           </div>
@@ -426,11 +433,32 @@ export function App() {
                 }}
               />
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              Modelo Qwen:
+              <input
+                value={qwenModel}
+                onChange={(e) => setQwenModel(e.target.value)}
+                placeholder={apiCfg.qwenModel || "qwen/qwen3.6-plus:free"}
+                style={{
+                  width: 220,
+                  padding: "4px 8px",
+                  borderRadius: 8,
+                  border: "2px solid #8ec4b2",
+                  fontFamily: "inherit",
+                  fontSize: 15,
+                }}
+              />
+            </label>
           </div>
           {apiCfg.groqConfigured === false && (
             <div style={{ fontSize: 14, color: "#a60", marginBottom: 6 }}>
               Groq: sem <code>GROQ_API_KEY</code> no servidor. A escolha funciona, mas o envio vai falhar ate
               configurares o .env.
+            </div>
+          )}
+          {apiCfg.qwenConfigured === false && (
+            <div style={{ fontSize: 14, color: "#a60", marginBottom: 6 }}>
+              Qwen: sem <code>OPENAI_BASE_URL</code> / <code>OPENAI_API_KEY</code> no servidor. Configure o .env para usar.
             </div>
           )}
           <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 6 }}>

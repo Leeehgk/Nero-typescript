@@ -21,6 +21,8 @@ const LM_MODEL = process.env.LOCAL_LM_MODEL ?? "local-model";
 const LOCAL_VISION_MODEL = process.env.LOCAL_VISION_MODEL?.trim() || LM_MODEL;
 const GROQ_MODEL = process.env.GROQ_MODEL ?? "llama-3.1-8b-instant";
 const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL?.trim() || GROQ_MODEL;
+const QWEN_MODEL = process.env.OPENAI_MODEL ?? "qwen/qwen3.6-plus:free";
+const QWEN_BASE_URL = process.env.OPENAI_BASE_URL ?? "";
 
 const app = express();
 app.use(cors());
@@ -34,18 +36,24 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     local: { baseURL: LM_URL, model: LM_MODEL, visionModel: LOCAL_VISION_MODEL },
     groq: { model: GROQ_MODEL, visionModel: GROQ_VISION_MODEL, configured: Boolean(process.env.GROQ_API_KEY?.trim()) },
+    qwen: { model: QWEN_MODEL, baseURL: QWEN_BASE_URL, configured: Boolean(process.env.OPENAI_BASE_URL?.trim() && process.env.OPENAI_API_KEY?.trim()) },
   });
 });
 
 app.get("/api/config", (_req, res) => {
-  const key = process.env.GROQ_API_KEY?.trim();
+  const groqKey = process.env.GROQ_API_KEY?.trim();
+  const qwenBaseUrl = process.env.OPENAI_BASE_URL?.trim();
+  const qwenApiKey = process.env.OPENAI_API_KEY?.trim();
   res.json({
-    groqConfigured: Boolean(key),
+    groqConfigured: Boolean(groqKey),
+    qwenConfigured: Boolean(qwenBaseUrl && qwenApiKey),
     localModel: LM_MODEL,
     localVisionModel: LOCAL_VISION_MODEL,
     localUrl: LM_URL,
     groqModel: GROQ_MODEL,
     groqVisionModel: GROQ_VISION_MODEL,
+    qwenModel: QWEN_MODEL,
+    qwenBaseUrl: QWEN_BASE_URL,
     edgeTtsVoice: process.env.EDGE_TTS_VOICE?.trim() || "pt-BR-AntonioNeural",
   });
 });
@@ -93,6 +101,13 @@ app.post("/api/chat", async (req, res) => {
     if (provider === "groq" && !process.env.GROQ_API_KEY?.trim()) {
       res.status(400).json({
         error: "Groq não configurado: defina GROQ_API_KEY no .env",
+        agentState: "error",
+      });
+      return;
+    }
+    if (provider === "qwen" && (!process.env.OPENAI_BASE_URL?.trim() || !process.env.OPENAI_API_KEY?.trim())) {
+      res.status(400).json({
+        error: "Qwen não configurado: defina OPENAI_BASE_URL e OPENAI_API_KEY no .env",
         agentState: "error",
       });
       return;
@@ -193,4 +208,5 @@ app.listen(PORT, () => {
   console.log(`  ${getContextoResumoLLM()}`);
   console.log(`  LM local: ${LM_URL} (${LM_MODEL})`);
   console.log(`  Groq: ${process.env.GROQ_API_KEY ? "chave OK" : "sem GROQ_API_KEY"} (${GROQ_MODEL})`);
+  console.log(`  Qwen: ${process.env.OPENAI_BASE_URL && process.env.OPENAI_API_KEY ? "configurado" : "sem config"} (${QWEN_MODEL}) via ${QWEN_BASE_URL || "N/A"}`);
 });

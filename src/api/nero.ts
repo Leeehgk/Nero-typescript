@@ -24,8 +24,10 @@ export async function sendChatMessage(message: string): Promise<AgentApiResponse
   };
   const lm = s.localModel.trim();
   const gm = s.groqModel.trim();
+  const qm = s.qwenModel.trim();
   if (lm) payload.localModel = lm;
   if (gm) payload.groqModel = gm;
+  if (qm) payload.qwenModel = qm;
 
   const r = await fetch("/api/chat", {
     method: "POST",
