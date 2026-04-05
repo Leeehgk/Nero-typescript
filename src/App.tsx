@@ -102,7 +102,8 @@ function dangerButtonStyle(disabled = false) {
 export function App() {
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showStore, setShowStore] = useState(false);
+  const isStoreOpen = useNeroStore((s) => s.isStoreOpen);
+  const setStoreOpen = useNeroStore((s) => s.setStoreOpen);
   const [showStylePanel, setShowStylePanel] = useState(false);
   const [apiCfg, setApiCfg] = useState<{
     localModel?: string;
@@ -320,7 +321,7 @@ export function App() {
           </strong>
         </div>
       </div>
-      {showStore && <FurnitureStorePanel onClose={() => setShowStore(false)} />}
+      {isStoreOpen && <FurnitureStorePanel onClose={() => setStoreOpen(false)} />}
       {showStylePanel && <StylePanel onClose={() => setShowStylePanel(false)} />}
       <div
         style={{
@@ -528,7 +529,7 @@ export function App() {
           <button type="button" onClick={() => void send()} disabled={isSubmitting} style={primaryButtonStyle(isSubmitting)}>
             {pendingApproval ? "Responder" : "Enviar"}
           </button>
-          <button type="button" onClick={() => setShowStore(!showStore)} style={successButtonStyle(false)}>
+          <button type="button" onClick={() => setStoreOpen(!isStoreOpen)} style={successButtonStyle(false)}>
             🛒 Loja
           </button>
           <button type="button" onClick={() => setShowStylePanel(!showStylePanel)} style={primaryButtonStyle(false)}>

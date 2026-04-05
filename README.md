@@ -23,6 +23,8 @@ O README abaixo ja reflete o comportamento atual do projeto, incluindo as implem
 - TTS do servidor mais estavel, com fallback automatico de voz em portugues quando `pt-BR-AntonioNeural` falha.
 - Recuperacao de tool calls no formato `<function=...>` quando o provedor retorna `tool_use_failed`.
 - Bloqueio de ferramentas sensiveis quando o pedido do usuario nao for explicito.
+- **Pathfinding Espacial Dinâmico A***: O PixelAgent agora possui uma engine imortal de rotas em 3D. A física de "Coasting" foi calibrada com caixas AABB restritas nativamente pela dimensão da mobília (sem falsas barreiras gigantes).
+- **Engine Limpa de Anti-Congelamento**: O cérebro do agente agora possui a diretriz de *ClosedSet Iterations* no A*, que limpa memórias de rotas inatingíveis (bloqueadas) impedindo colapsos de travamento da API ou lentidão de interface visual ao recalcular rotas.
 - PixelAgent com locomocao aleatoria funcional, ida ao PC durante interacoes e pausa controlada apos responder.
 
 ## Principais recursos

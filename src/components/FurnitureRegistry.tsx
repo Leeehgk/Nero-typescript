@@ -3,15 +3,19 @@ import { useNeroStore } from "../store";
 
 export function useFurnitureEvents(id: string, rotation?: [number, number, number]) {
   const clickTime = useRef(0);
+  const isStoreOpen = useNeroStore((s) => s.isStoreOpen);
+  
   return {
     onClick: (e: any) => {
       e.stopPropagation();
+      if (!isStoreOpen) return;
       if (Date.now() - clickTime.current > 200) return;
       const rot = rotation || [0, 0, 0];
       useNeroStore.getState().updateFurniture(id, { rotation: [rot[0], rot[1] - Math.PI / 2, rot[2]] });
     },
     onPointerDown: (e: any) => {
       e.stopPropagation();
+      if (!isStoreOpen) return;
       clickTime.current = Date.now();
       useNeroStore.getState().setDraggingFurnitureId(id);
     },

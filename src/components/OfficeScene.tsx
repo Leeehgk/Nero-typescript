@@ -6,6 +6,7 @@ import { useNeroStore } from "../store";
 import { HabboKeyboard } from "./HabboKeyboard";
 import { PixelAgent } from "./PixelAgent";
 import { HabboOfficeFurniture } from "./FurnitureRegistry";
+import { createCollisionGrid } from "./pathfinding";
 
 function HabboSky() {
   const { scene } = useThree();
@@ -32,7 +33,11 @@ function CameraIso() {
 
 function HabboFloor() {
   const theme = useNeroStore((s) => s.themeMode);
-  const tiles: ReactNode[] = [];
+  const furnitureList = useNeroStore((s) => s.furnitureList);
+  const isStoreOpen = useNeroStore((s) => s.isStoreOpen);
+  const collisions = createCollisionGrid(furnitureList || []);
+
+  const tiles = [];
   
   for (let x = -5; x <= 5; x++) {
     for (let z = -5; z <= 5; z++) {
@@ -40,10 +45,10 @@ function HabboFloor() {
       let r = 0.92;
       let m = 0.02;
 
-      const isEven = (x + z) % 2 === 0;
+      const isEven = Math.abs(x + z) % 2 === 0;
 
       if (theme === "hacker") {
-        c = isEven ? "#19261d" : "#0f1611"; // Gunmetal verde ao invez de preto escuro
+        c = isEven ? "#19261d" : "#0f1611"; // Gunmetal verde
         r = 0.6; // Suaviza o reflexo do preto
         m = 0.5; // Menos espelhado
       } else if (theme === "premium") {
@@ -54,17 +59,21 @@ function HabboFloor() {
         c = isEven ? "#e8dcc8" : "#b8956a";
       }
 
+      const isBlocked = collisions.has(`${x},${z}`);
+
+      let tileColor = c;
+      if (isStoreOpen && isBlocked) tileColor = "#e74c3c"; // Vermelho apenas em modo edição
+
       tiles.push(
         <group key={`${x}-${z}`} position={[x, 0, z]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[1, 1]} />
-            <meshStandardMaterial color={c} roughness={r} metalness={m} />
+            <meshStandardMaterial color={tileColor} roughness={r} metalness={m} />
           </mesh>
           
           {/* Malha/Grelha de Neon no Chao para Modo Hacker */}
           {theme === "hacker" && isEven && (
              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
-               {/* Usando ring pra simular borda da matriz tech */}
                <ringGeometry args={[0.45, 0.48, 4, 1, Math.PI / 4]} />
                <meshBasicMaterial color="#00ff55" transparent opacity={0.15} />
              </mesh>

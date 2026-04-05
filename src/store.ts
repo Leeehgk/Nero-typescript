@@ -48,6 +48,7 @@ export type AgentDebug = {
   mood: AgentMood;
   updatedAt: number;
 };
+export type PathDebug = AgentGrid[];
 
 let computerActiveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -61,6 +62,8 @@ function clampGrid(x: number, z: number): AgentGrid {
 }
 
 type Store = {
+  isStoreOpen: boolean;
+  setStoreOpen: (open: boolean) => void;
   mood: AgentMood;
   lastReply: string;
   llmProvider: LlmProvider;
@@ -71,10 +74,12 @@ type Store = {
   /** Destino de movimento (centro do azulejo). */
   agentTarget: AgentGrid;
   agentDebug: AgentDebug | null;
+  pathDebug: PathDebug;
   computerActive: boolean;
   setAgentTarget: (x: number, z: number) => void;
   nudgeAgent: (dx: number, dz: number) => void;
   setAgentDebug: (debug: AgentDebug) => void;
+  setPathDebug: (pathDebug: PathDebug) => void;
   activateComputer: (durationMs?: number) => void;
   setMood: (m: AgentMood) => void;
   setLastReply: (s: string) => void;
@@ -120,8 +125,12 @@ export const useNeroStore = create<Store>()(
           furnitureList: state.furnitureList.map((f) => (f.id === id ? { ...f, ...updates } : f))
         }));
       },
-      agentTarget: { x: 1, z: 1 },
+      isStoreOpen: false,
+  setStoreOpen: (open) => set({ isStoreOpen: open }),
+  
+  agentTarget: { x: 1, z: 1 },
       agentDebug: null,
+      pathDebug: [],
       computerActive: false,
       setAgentTarget: (x, z) => set({ agentTarget: clampGrid(x, z) }),
       nudgeAgent: (dx, dz) => {
@@ -129,6 +138,7 @@ export const useNeroStore = create<Store>()(
         set({ agentTarget: clampGrid(x + dx, z + dz) });
       },
       setAgentDebug: (agentDebug) => set({ agentDebug }),
+      setPathDebug: (pathDebug) => set({ pathDebug }),
       activateComputer: (durationMs = 10000) => {
         if (computerActiveTimer) clearTimeout(computerActiveTimer);
         set({ computerActive: true });

@@ -1,7 +1,8 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
-import { useNeroStore, type AgentMood } from "../store";
+import { useNeroStore, type AgentMood, type FurnitureItem } from "../store";
+import { calculatePath, createCollisionGrid } from "./pathfinding";
 
 type GridPoint = { x: number; z: number };
 
@@ -52,8 +53,10 @@ function isInteractionMood(mood: AgentMood): boolean {
   return mood === "thinking" || mood === "speaking" || mood === "success" || mood === "error";
 }
 
-function pickRandomTarget(from: GridPoint): GridPoint {
-  for (let i = 0; i < 12; i++) {
+function pickRandomTarget(from: GridPoint, furnitureList: FurnitureItem[]): GridPoint {
+  const obstacles = createCollisionGrid(furnitureList);
+  // Não deixa o móvel alvo cair em lugares proibidos
+  for (let i = 0; i < 20; i++) {
     const dx = Math.floor(Math.random() * 5) - 2;
     const dz = Math.floor(Math.random() * 5) - 2;
     if (dx === 0 && dz === 0) continue;
@@ -61,7 +64,9 @@ function pickRandomTarget(from: GridPoint): GridPoint {
       x: clampTile(from.x + dx),
       z: clampTile(from.z + dz),
     };
-    if (!samePoint(next, from)) return next;
+    if (!samePoint(next, from) && !obstacles.has(`${next.x},${next.z}`)) {
+      return next;
+    }
   }
 
   return {
@@ -75,30 +80,57 @@ export function PixelAgent() {
   const armL = useRef<Group>(null);
   const armR = useRef<Group>(null);
 
+  const furnitureList = useNeroStore((s) => s.furnitureList) || [];
+  
   const initialTarget = useNeroStore.getState().agentTarget;
   const posRef = useRef<GridPoint>({ x: initialTarget.x, z: initialTarget.z });
-  const targetRef = useRef<GridPoint>(pickRandomTarget(initialTarget));
+  const targetRef = useRef<GridPoint>(pickRandomTarget(initialTarget, furnitureList));
+  const pathRef = useRef<GridPoint[]>([]); // Array de passos do algoritmo
+  
   const lastExternalTargetRef = useRef<GridPoint>({ x: initialTarget.x, z: initialTarget.z });
   const facingRef = useRef(INITIAL_FACING_Y);
   const nextWanderAtRef = useRef(0);
   const lastDebugSyncAtRef = useRef(0);
   const prevMoodRef = useRef<AgentMood>(useNeroStore.getState().mood);
   const waitingToPauseAtWorkstationRef = useRef(false);
+  const lastPathFailedAtRef = useRef<{ x: number, z: number } | null>(null);
 
   const setAgentDebug = useNeroStore((s) => s.setAgentDebug);
   const skinMode = useNeroStore((s) => s.skinMode);
 
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime;
-    const { mood, agentTarget } = useNeroStore.getState();
+    const { mood, agentTarget, furnitureList } = useNeroStore.getState();
     const params = moodParams(mood);
     const isThinking = mood === "thinking";
     const isInteraction = isInteractionMood(mood);
 
+    // Repath function helper
+    const navigateTo = (dest: GridPoint) => {
+      targetRef.current = dest;
+      const roundedPos = { x: Math.round(posRef.current.x), z: Math.round(posRef.current.z) };
+      pathRef.current = calculatePath(roundedPos, dest, furnitureList || []);
+      
+      console.log(`[A* Pathfinder] Origem: ${roundedPos.x},${roundedPos.z} | Alvo: ${dest.x},${dest.z} | Nós Livres: ${pathRef.current.length}`);
+
+      if (pathRef.current.length > 0 && 
+          Math.hypot(pathRef.current[0].x - posRef.current.x, pathRef.current[0].z - posRef.current.z) < 0.2) {
+        pathRef.current.shift();
+      }
+      useNeroStore.getState().setPathDebug([...pathRef.current]);
+    };
+
+    // Força o pathfinding para o trajeto da inicialização que ignorava a Rota nodal.
+    // MAS adicionamos cacheState pra não destruir 60fps de recalculo caso a Engine diga [].
+    if (pathRef.current.length === 0 && !lastPathFailedAtRef.current && !samePoint(targetRef.current, {x: Math.round(posRef.current.x), z: Math.round(posRef.current.z)})) {
+       const hasReachedFallback = Math.hypot(targetRef.current.x - posRef.current.x, targetRef.current.z - posRef.current.z) < 0.05;
+       if (!hasReachedFallback) navigateTo(targetRef.current);
+    }
+
     if (prevMoodRef.current !== mood) {
       if (isInteraction) {
         lastExternalTargetRef.current = { ...agentTarget };
-        targetRef.current = { ...WORKSTATION_POINT };
+        navigateTo({ ...WORKSTATION_POINT });
         waitingToPauseAtWorkstationRef.current = false;
       } else if (isInteractionMood(prevMoodRef.current)) {
         nextWanderAtRef.current = Number.POSITIVE_INFINITY;
@@ -109,7 +141,7 @@ export function PixelAgent() {
 
     if (!isInteraction && !samePoint(agentTarget, lastExternalTargetRef.current)) {
       lastExternalTargetRef.current = { ...agentTarget };
-      targetRef.current = { ...agentTarget };
+      navigateTo({ ...agentTarget });
       nextWanderAtRef.current = t + 0.8;
     }
 
@@ -118,10 +150,9 @@ export function PixelAgent() {
       z: clampTile(posRef.current.z),
     };
 
-    const dxToTarget = targetRef.current.x - posRef.current.x;
-    const dzToTarget = targetRef.current.z - posRef.current.z;
-    const distToTarget = Math.hypot(dxToTarget, dzToTarget);
-    const reachedTarget = distToTarget < 0.04;
+    const distToFinalTarget = Math.hypot(targetRef.current.x - posRef.current.x, targetRef.current.z - posRef.current.z);
+    const reachedFinalTarget = distToFinalTarget < 0.04 && pathRef.current.length === 0;
+    
     const distToWorkstation = Math.hypot(WORKSTATION_POINT.x - posRef.current.x, WORKSTATION_POINT.z - posRef.current.z);
     const atWorkstation = distToWorkstation < 0.06;
 
@@ -130,14 +161,50 @@ export function PixelAgent() {
       nextWanderAtRef.current = t + 10;
     }
 
-    if (!isInteraction && reachedTarget && t >= nextWanderAtRef.current) {
-      targetRef.current = pickRandomTarget(roundedPos);
+    if (!isInteraction && reachedFinalTarget && t >= nextWanderAtRef.current) {
+      const nextRdm = pickRandomTarget(roundedPos, furnitureList || []);
+      navigateTo(nextRdm);
       nextWanderAtRef.current = t + 1.3 + Math.random() * 1.6;
     }
+    
+    // Avança no Caminho Nodal (Waypoints calculados pelo A*)
+    let moveDx = 0;
+    let moveDz = 0;
+    let moveDist = 0;
 
-    const moveDx = targetRef.current.x - posRef.current.x;
-    const moveDz = targetRef.current.z - posRef.current.z;
-    const moveDist = Math.hypot(moveDx, moveDz);
+    if (pathRef.current.length > 0) {
+      const currentWaypoint = pathRef.current[0];
+      moveDx = currentWaypoint.x - posRef.current.x;
+      moveDz = currentWaypoint.z - posRef.current.z;
+      moveDist = Math.hypot(moveDx, moveDz);
+
+      if (moveDist < 0.08) {
+        pathRef.current.shift(); // Consome o waypoint alcançado
+        if (pathRef.current.length > 0) {
+           const nextWaypoint = pathRef.current[0];
+           moveDx = nextWaypoint.x - posRef.current.x;
+           moveDz = nextWaypoint.z - posRef.current.z;
+           moveDist = Math.hypot(moveDx, moveDz);
+        } else {
+           moveDx = 0;
+           moveDz = 0;
+           moveDist = 0;
+        }
+      }
+    } else {
+      // Sem rota ou finalizado. Faz o "coasting" (deslizamento) se ele já estiver 
+      // milimetros do Target real pra zerar a variável, mas evita ignorar parede.
+      const distToIdle = Math.hypot(targetRef.current.x - posRef.current.x, targetRef.current.z - posRef.current.z);
+      if (distToIdle < 0.2) {
+         moveDx = targetRef.current.x - posRef.current.x;
+         moveDz = targetRef.current.z - posRef.current.z;
+         moveDist = distToIdle;
+      } else {
+         moveDx = 0;
+         moveDz = 0;
+         moveDist = 0;
+      }
+    }
 
     let walking = false;
     if (moveDist > 0.01) {
