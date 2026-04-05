@@ -24,7 +24,7 @@ function HabboSky() {
 function CameraIso() {
   const { camera } = useThree();
   useLayoutEffect(() => {
-    camera.position.set(18, 16, 18);
+    camera.position.set(20, 18, 20);
     camera.lookAt(0, 0.45, 0);
     camera.updateProjectionMatrix();
   }, [camera]);
@@ -39,8 +39,8 @@ function HabboFloor() {
 
   const tiles = [];
   
-  for (let x = -5; x <= 5; x++) {
-    for (let z = -5; z <= 5; z++) {
+  for (let x = -7; x <= 7; x++) {
+    for (let z = -7; z <= 7; z++) {
       let c = "";
       let r = 0.92;
       let m = 0.02;
@@ -117,12 +117,12 @@ function FloorClickNav() {
           // Ímã de Parede de Luxo
           const wallItems = ["painting", "board"];
           if (wallItems.includes(item.type)) {
-            if (snapZ <= -4) {
-              snapZ = -5.35; // Fundo
+            if (snapZ <= -6) {
+              snapZ = -7.35; // Fundo
               snapY = 1.8;
               rot = [0, 0, 0];
-            } else if (snapX <= -4) {
-              snapX = -5.35; // Lateral
+            } else if (snapX <= -6) {
+              snapX = -7.35; // Lateral
               snapY = 1.8;
               rot = [0, Math.PI / 2, 0];
             } else {
@@ -164,15 +164,15 @@ function HabboBackWall() {
   return (
     <group>
       {/* Parede Principal */}
-      <mesh position={[0, 1.65, -5.52]} receiveShadow>
-        <boxGeometry args={[12.2, 3.4, 0.35]} />
+      <mesh position={[0, 1.65, -7.52]} receiveShadow>
+        <boxGeometry args={[16.2, 3.4, 0.35]} />
         <meshStandardMaterial color={wallColors[theme]} roughness={theme === "premium" ? 0.3 : 0.88} />
       </mesh>
       
       {/* Listras Tron / Neon Matrix Server */}
       {theme === "hacker" && (
-        <group position={[0, 1.65, -5.33]}>
-          {[-4.5, -2.5, 0, 2.5, 4.5].map((px) => (
+        <group position={[0, 1.65, -7.33]}>
+          {[-6.5, -4.33, -2.17, 0, 2.17, 4.33, 6.5].map((px) => (
              <mesh key={px} position={[px, 0, 0]}>
                <boxGeometry args={[0.08, 3.4, 0.05]} />
                <meshStandardMaterial color="#00ff55" emissive="#00f34c" emissiveIntensity={1.8} />
@@ -180,18 +180,18 @@ function HabboBackWall() {
           ))}
           {/* Cabo de neon correndo no rodape */}
           <mesh position={[0, -1.5, 0.05]}>
-            <boxGeometry args={[12.2, 0.05, 0.03]} />
+            <boxGeometry args={[16.2, 0.05, 0.03]} />
             <meshStandardMaterial color="#00ff55" emissive="#00f34c" emissiveIntensity={2} />
           </mesh>
         </group>
       )}
 
       {/* Area Escura Janela */}
-      <mesh position={[0, 1.1, -5.32]}>
+      <mesh position={[0, 1.1, -7.32]}>
         <planeGeometry args={[1.1, 2.1]} />
         <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
       </mesh>
-      <mesh position={[-4.2, 2.5, -5.25]}>
+      <mesh position={[-4.2, 2.5, -7.25]}>
         <planeGeometry args={[2.2, 1.5]} />
         <meshStandardMaterial color={windowColors[theme]} roughness={0.92} metalness={0.02} />
       </mesh>
@@ -208,15 +208,15 @@ function HabboSideWall() {
   };
   return (
     <group>
-      <mesh position={[-5.52, 1.65, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
-        <boxGeometry args={[12.2, 3.4, 0.35]} />
+      <mesh position={[-7.52, 1.65, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
+        <boxGeometry args={[16.2, 3.4, 0.35]} />
         <meshStandardMaterial color={wallColors[theme]} roughness={theme === "premium" ? 0.3 : 0.9} />
       </mesh>
 
       {/* Continuacao do cabo Neon de rodape proxima a parede */}
       {theme === "hacker" && (
-         <mesh position={[-5.33, 0.15, 0]} rotation={[0, Math.PI / 2, 0]}>
-           <boxGeometry args={[12.2, 0.05, 0.03]} />
+         <mesh position={[-7.33, 0.15, 0]} rotation={[0, Math.PI / 2, 0]}>
+           <boxGeometry args={[16.2, 0.05, 0.03]} />
            <meshStandardMaterial color="#00ff55" emissive="#00f34c" emissiveIntensity={2} />
          </mesh>
       )}
@@ -286,7 +286,7 @@ export function OfficeScene() {
       onPointerLeave={() => useNeroStore.getState().setDraggingFurnitureId(null)}
     >
       <HabboSky />
-      <OrthographicCamera makeDefault position={[18, 16, 18]} zoom={34} near={0.1} far={120} />
+      <OrthographicCamera makeDefault position={[20, 18, 20]} zoom={30} near={0.1} far={120} />
       <CameraIso />
       <HabboKeyboard />
       <ambientLight intensity={0.62} color="#fff8f0" />
@@ -299,10 +299,10 @@ export function OfficeScene() {
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
         shadow-camera-far={50}
-        shadow-camera-left={-12}
-        shadow-camera-right={12}
-        shadow-camera-top={12}
-        shadow-camera-bottom={-12}
+        shadow-camera-left={-14}
+        shadow-camera-right={14}
+        shadow-camera-top={14}
+        shadow-camera-bottom={-14}
       />
       <HabboFloor />
       <FloorClickNav />

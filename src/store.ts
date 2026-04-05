@@ -31,7 +31,12 @@ export type FurnitureType =
   | "mirror"
   | "statue"
   | "wall_clock"
-  | "speaker";
+  | "speaker"
+  | "fridge"
+  | "fireplace"
+  | "piano"
+  | "vending"
+  | "barrel";
 
 export interface FurnitureItem {
   id: string;
@@ -62,7 +67,7 @@ export type PathDebug = AgentGrid[];
 
 let computerActiveTimer: ReturnType<typeof setTimeout> | null = null;
 
-const GRID = { min: -5, max: 5 } as const;
+const GRID = { min: -7, max: 7 } as const;
 
 function clampGrid(x: number, z: number): AgentGrid {
   return {

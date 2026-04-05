@@ -24,6 +24,11 @@ const typeLabels: Record<FurnitureType, string> = {
   statue: "🗿 Estátua Abstrata",
   wall_clock: "🕰️ Relógio Analógico",
   speaker: "🔊 Torre de Som",
+  fridge: "🧊 Geladeira Inox",
+  fireplace: "🔥 Lareira Rústica",
+  piano: "🎹 Piano de Cauda",
+  vending: "🥤 Máquina de Vendas",
+  barrel: "🛢️ Barril Viking",
 };
 
 export function FurnitureStorePanel({ onClose }: { onClose: () => void }) {

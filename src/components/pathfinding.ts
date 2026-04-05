@@ -1,7 +1,7 @@
 import type { FurnitureItem, FurnitureType, AgentGrid } from "../store";
 
-export const GRID_MIN = -5;
-export const GRID_MAX = 5;
+export const GRID_MIN = -7;
+export const GRID_MAX = 7;
 
 // Define se o móvel bloqueia o caminho (tem colisão)
 export function isSolid(type: FurnitureType): boolean {
@@ -47,7 +47,7 @@ export function getOccupiedTiles(item: FurnitureItem): AgentGrid[] {
     case "diningtable":
       widthDef = 2.5; depthDef = 1.4; break;
     case "arcade":
-      widthDef = 1.0; depthDef = 1.1; break;
+      widthDef = 0.9; depthDef = 0.7; break;
     case "nightstand":
       widthDef = 0.7; depthDef = 0.7; break;
     case "bonsai":
@@ -58,6 +58,16 @@ export function getOccupiedTiles(item: FurnitureItem): AgentGrid[] {
       widthDef = 1.0; depthDef = 0.1; break;
     case "statue":
       widthDef = 0.6; depthDef = 0.6; break;
+    case "fridge":
+      widthDef = 1.0; depthDef = 0.9; break;
+    case "fireplace":
+      widthDef = 1.8; depthDef = 0.8; break;
+    case "piano":
+      widthDef = 1.6; depthDef = 0.7; break;
+    case "vending":
+      widthDef = 1.0; depthDef = 0.8; break;
+    case "barrel":
+      widthDef = 0.7; depthDef = 0.7; break;
     default:
       // Plant, Lamp, Globe...
       widthDef = 0.6; depthDef = 0.6; break;
