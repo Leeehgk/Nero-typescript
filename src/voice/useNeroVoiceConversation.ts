@@ -111,14 +111,13 @@ export function useNeroVoiceConversation() {
         const transcript = ev.results[i][0].transcript.toLowerCase();
         if (
           transcriptHasWakeWord(transcript) ||
-          transcript.match(/\b(pare|chega|silêncio|psiu|shh|deu|parou|tá bom o áudio)\b/i) ||
-          transcript.match(/\b(para de falar|para com isso)\b/i)
+          /^(pare de falar|para de falar|chega nero|silêncio nero|psiu|pare nero|shh|deu tchau nero|tá bom já|para com isso|cale se Nero)$/i.test(transcript)
         ) {
           isInterrupt = true;
           break;
         }
       }
-      
+
       if (isInterrupt) {
         cancelSpeech();
         stopInterruptListener();

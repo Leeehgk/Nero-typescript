@@ -4,10 +4,15 @@ let voicesReady = false;
 let currentAudio: HTMLAudioElement | null = null;
 let currentFetchAbort: AbortController | null = null;
 let speakSession = 0;
+let playEndGuard: ReturnType<typeof setTimeout> | null = null;
 
 function stopCurrentPlayback(): void {
   currentFetchAbort?.abort();
   currentFetchAbort = null;
+  if (playEndGuard) {
+    clearTimeout(playEndGuard);
+    playEndGuard = null;
+  }
   if (typeof window !== "undefined" && window.speechSynthesis) {
     speechSynthesis.cancel();
   }
@@ -73,7 +78,10 @@ function speakTextBrowser(text: string): Promise<void> {
         u.volume = 1;
         const voice = pickBestPtBrVoice();
         if (voice) u.voice = voice;
-        u.onend = () => resolve();
+        u.onend = () => {
+          // Guard sincronizado com o cancel
+          setTimeout(resolve, 150);
+        };
         u.onerror = () => resolve();
         speechSynthesis.speak(u);
       })
@@ -110,10 +118,15 @@ export function speakText(text: string): Promise<void> {
         currentAudio = a;
         a.preload = "auto";
         const done = () => {
-          URL.revokeObjectURL(url);
-          if (currentAudio === a) currentAudio = null;
-          if (currentFetchAbort === controller) currentFetchAbort = null;
-          resolve();
+          // Pequeno atraso de segurança evita corte abrupto do fim
+          const guard = setTimeout(() => {
+            URL.revokeObjectURL(url);
+            playEndGuard = null;
+            if (currentAudio === a) currentAudio = null;
+            if (currentFetchAbort === controller) currentFetchAbort = null;
+            resolve();
+          }, 200);
+          playEndGuard = guard;
         };
         a.onended = done;
         a.onerror = done;

@@ -21,6 +21,7 @@ export async function sendChatMessage(message: string): Promise<AgentApiResponse
   const payload: Record<string, string> = {
     message,
     provider: s.llmProvider,
+    agentMode: s.agentMode,
   };
   const lm = s.localModel.trim();
   const gm = s.groqModel.trim();

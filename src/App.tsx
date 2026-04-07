@@ -5,7 +5,7 @@ import type { AgentApiResponse } from "./agentTypes";
 import { OfficeScene } from "./components/OfficeScene";
 import { FurnitureStorePanel } from "./components/FurnitureStorePanel";
 import { StylePanel } from "./components/StylePanel";
-import { useNeroStore, type LlmProvider } from "./store";
+import { useNeroStore, type AgentMode, type LlmProvider } from "./store";
 import { useNeroVoiceConversation } from "./voice/useNeroVoiceConversation";
 
 type ErrorBoundaryProps = {
@@ -131,6 +131,8 @@ export function App() {
   const setLocalModel = useNeroStore((s) => s.setLocalModel);
   const setGroqModel = useNeroStore((s) => s.setGroqModel);
   const setQwenModel = useNeroStore((s) => s.setQwenModel);
+  const agentMode = useNeroStore((s) => s.agentMode);
+  const setAgentMode = useNeroStore((s) => s.setAgentMode);
 
   const { phase: voicePhase, subtitle, voiceError, startVoice, stopVoice } = useNeroVoiceConversation();
 
@@ -390,6 +392,27 @@ export function App() {
                 <option value="qwen">Qwen (OpenRouter)</option>
               </select>
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400, fontSize: 16 }}>
+              Modo:
+              <select
+                value={agentMode}
+                onChange={(e) => setAgentMode(e.target.value as AgentMode)}
+                style={{
+                  fontFamily: "inherit",
+                  fontSize: 16,
+                  padding: "4px 8px",
+                  borderRadius: 8,
+                  border: agentMode === "agente" ? "2px solid #d4a84a" : "2px solid #5aad8f",
+                  background: agentMode === "agente" ? "linear-gradient(180deg, #fff8e0, #ffe8b8)" : "#fff",
+                  color: "#2d4a3e",
+                  cursor: "pointer",
+                  fontWeight: agentMode === "agente" ? 700 : 400,
+                }}
+              >
+                <option value="conversa">💬 Conversa</option>
+                <option value="agente">🤖 Agente</option>
+              </select>
+            </label>
           </div>
           <div
             style={{
@@ -485,15 +508,47 @@ export function App() {
                 marginBottom: 10,
                 padding: "10px 12px",
                 borderRadius: 12,
-                background: "rgba(255, 248, 224, 0.95)",
-                border: "2px solid #d1ab42",
+                background: pendingApproval.isBatch
+                  ? "linear-gradient(180deg, rgba(255,248,224,0.97), rgba(255,240,200,0.95))"
+                  : "rgba(255, 248, 224, 0.95)",
+                border: pendingApproval.isBatch ? "2px solid #c99a2e" : "2px solid #d1ab42",
                 color: "#5c4407",
-                boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                boxShadow: pendingApproval.isBatch
+                  ? "0 8px 20px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.4)"
+                  : "0 6px 16px rgba(0,0,0,0.12)",
               }}
             >
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Aguardando aprovacao</div>
-              <div style={{ fontSize: 16, marginBottom: 6 }}>{pendingApproval.summary}</div>
-              <div style={{ fontSize: 15, whiteSpace: "pre-wrap", opacity: 0.9 }}>{pendingApproval.prompt}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+                {pendingApproval.isBatch ? "🤖 Plano do Agente" : "Aguardando aprovacao"}
+              </div>
+              {pendingApproval.isBatch && pendingApproval.plannedActions ? (
+                <div style={{ marginBottom: 8 }}>
+                  {pendingApproval.plannedActions.map((action, i) => (
+                    <div
+                      key={`${action.name}-${i}`}
+                      style={{
+                        fontSize: 16,
+                        padding: "6px 8px",
+                        margin: "4px 0",
+                        borderRadius: 8,
+                        background: "rgba(255,255,255,0.6)",
+                        border: "1px solid rgba(209,171,66,0.3)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, color: "#c99a2e", minWidth: 20 }}>{i + 1}.</span>
+                      <span>{action.summary}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 16, marginBottom: 6 }}>{pendingApproval.summary}</div>
+                  <div style={{ fontSize: 15, whiteSpace: "pre-wrap", opacity: 0.9 }}>{pendingApproval.prompt}</div>
+                </>
+              )}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
                 <button
                   type="button"
@@ -501,7 +556,7 @@ export function App() {
                   disabled={isSubmitting}
                   style={successButtonStyle(isSubmitting)}
                 >
-                  Aprovar
+                  {pendingApproval.isBatch ? "✅ Aprovar Tudo" : "Aprovar"}
                 </button>
                 <button
                   type="button"
@@ -509,7 +564,7 @@ export function App() {
                   disabled={isSubmitting}
                   style={dangerButtonStyle(isSubmitting)}
                 >
-                  Negar
+                  {pendingApproval.isBatch ? "❌ Cancelar Tudo" : "Negar"}
                 </button>
               </div>
             </div>

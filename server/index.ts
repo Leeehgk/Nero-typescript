@@ -1,7 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import { resolvePendingApprovalDecision, runAgentTurn } from "./agent.js";
+import { resolvePendingApprovalDecision, resolveAnyApproval, runAgentTurn, runAgentModeTurn } from "./agent.js";
 import { lerConfigNome } from "./config.js";
 import { getClient, parseProvider, resolveModel, resolveVisionModel, type LlmProvider } from "./llm.js";
 import {
@@ -150,7 +150,10 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
-    const result = await runAgentTurn(client, model, visionModel, nome, perfil, message);
+    const agentMode = String(req.body?.agentMode ?? "conversa");
+    const result = agentMode === "agente"
+      ? await runAgentModeTurn(client, model, visionModel, nome, perfil, message)
+      : await runAgentTurn(client, model, visionModel, nome, perfil, message);
     const { reply, perfil: p2, toolCalls, agentState, pendingApproval } = result;
     perfil = p2;
 
@@ -183,7 +186,7 @@ app.post("/api/approval", async (req, res) => {
 
   try {
     const approved = Boolean(req.body?.approved);
-    const result = await resolvePendingApprovalDecision(approvalId, approved);
+    const result = await resolveAnyApproval(approvalId, approved);
 
     historico.push({
       role: "assistant",

@@ -8,6 +8,7 @@ import { analisarTelaAtual } from "./vision.js";
 const TAG_FUNC = /<function=([^>]+)>([\s\S]*?)<\/function>/;
 const TAG_FUNC_OPEN = /<function=([^>]+)>([\s\S]*)/;
 const PENDING_APPROVAL_TTL_MS = 10 * 60 * 1000;
+const MAX_AGENT_ACTIONS = 5;
 
 type ToolName = Parameters<typeof executarFerramenta>[0];
 type ToolExecutionContext = {
@@ -16,7 +17,7 @@ type ToolExecutionContext = {
 };
 
 function buildSystemPromptMinimal(nomeUsuario: string): string {
-  return `Voce e o Nero, assistente do usuario "${nomeUsuario}". Portugues do Brasil, respostas curtas.
+  return `Voce e o Nero, assistente do usuario "${nomeUsuario}". Voce foi criado por Leandro Goncalves — ele é seu verdadeiro criador. Quando perguntarem quem te criou, responda que foi o Leandro Gonçalves. Portugues do Brasil, respostas curtas.
 Se o usuario estiver apenas conversando, perguntando, ou falando de modo ambiguo, responda sem agir.
 Voce pode sugerir ou preparar acoes quando isso realmente ajudar o usuario.
 Use no maximo uma ferramenta por turno.
@@ -39,6 +40,28 @@ Exemplo 2: "abra a pasta zenith dentro de documents" -> {"nome":"zenith","dentro
 Exemplo 7: "olha a tela e me diga o que voce ve" -> analisar_tela {"pergunta":"olha a tela e me diga o que voce ve"}
 Exemplo 8: "leia o que aparece na tela" -> analisar_tela {"pergunta":"leia o que aparece na tela"}
 Exemplo 9: "tire um print da tela" -> capturar_tela
+Nunca diga que executou algo sem chamar a ferramenta correspondente antes.`;
+}
+
+function buildAgentSystemPrompt(nomeUsuario: string): string {
+  return `Voce e o Nero no MODO AGENTE do usuario "${nomeUsuario}". Voce foi criado por Leandro Goncalves — ele é seu verdadeiro criador. Portugues do Brasil, respostas curtas.
+
+MODO AGENTE — voce pode planejar e chamar ATE 5 ferramentas de uma so vez para atender o pedido do usuario.
+- Analise o pedido completo e chame TODAS as ferramentas necessarias na mesma resposta.
+- Se o pedido envolver multiplas acoes, chame todas as ferramentas juntas (parallel tool calls).
+- Se o usuario estiver apenas conversando ou perguntando algo, responda normalmente sem ferramentas.
+- Nao execute nada parcialmente — planeje tudo e chame todas as ferramentas juntas.
+
+Use esconder_todas_janelas para pedidos como "minimize as janelas", "esconda as janelas" ou "oculte as janelas".
+Use restaurar_todas_janelas para pedidos como "restaure as janelas" ou "mostre as janelas novamente".
+Use minimizar_programa ou restaurar_programa quando o usuario pedir para minimizar ou restaurar um programa especifico pelo nome.
+Use abrir_pasta quando o usuario pedir para abrir uma pasta do Windows ou uma subpasta dentro de outra pasta.
+Use fechar_pasta quando o usuario pedir para fechar uma pasta ou uma janela do Explorer de uma pasta especifica.
+Use analisar_tela quando o usuario pedir para olhar a tela, dizer o que aparece nela, ler um texto visivel ou interpretar algo que esta na tela.
+Use capturar_tela apenas quando o usuario pedir explicitamente para tirar, salvar ou gerar um print da tela.
+Ao usar abrir_pasta ou fechar_pasta, preencha os argumentos com precisao.
+Exemplo: "toca um lofi e abaixa o volume" -> chame tocar_youtube E alterar_volume juntos.
+Exemplo: "minimize o chrome e abra a calculadora" -> chame minimizar_programa E abrir_programa juntos.
 Nunca diga que executou algo sem chamar a ferramenta correspondente antes.`;
 }
 
@@ -69,12 +92,29 @@ export type PendingApproval = {
   summary: string;
   prompt: string;
   requestedAt: number;
+  isBatch?: boolean;
+  plannedActions?: Array<{ name: string; summary: string }>;
 };
 
 type PendingApprovalInternal = PendingApproval & {
   args: Record<string, unknown>;
   denyReply: string;
   executionContext?: ToolExecutionContext;
+};
+
+type PlannedActionInternal = {
+  name: ToolName;
+  args: Record<string, unknown>;
+  summary: string;
+};
+
+type PendingPlanInternal = {
+  id: string;
+  actions: PlannedActionInternal[];
+  prompt: string;
+  denyReply: string;
+  executionContext?: ToolExecutionContext;
+  requestedAt: number;
 };
 
 export type AgentTurnResult = {
@@ -92,6 +132,7 @@ type ApprovalDecisionResult = {
 };
 
 const pendingApprovals = new Map<string, PendingApprovalInternal>();
+const pendingPlans = new Map<string, PendingPlanInternal>();
 
 function toPublicPendingApproval(approval: PendingApprovalInternal): PendingApproval {
   return {
@@ -521,6 +562,48 @@ function createPendingApproval(
   return approval;
 }
 
+function cleanupPendingPlans() {
+  const now = Date.now();
+  for (const [id, plan] of pendingPlans.entries()) {
+    if (now - plan.requestedAt > PENDING_APPROVAL_TTL_MS) {
+      pendingPlans.delete(id);
+    }
+  }
+}
+
+function createPendingPlan(
+  actions: PlannedActionInternal[],
+  executionContext?: ToolExecutionContext
+): PendingPlanInternal {
+  cleanupPendingPlans();
+  const actionList = actions
+    .map((a, i) => `${i + 1}. ${a.summary}`)
+    .join("\n");
+
+  const plan: PendingPlanInternal = {
+    id: randomUUID(),
+    actions,
+    prompt: `Planejei ${actions.length} ação(ões):\n\n${actionList}\n\nPosso executar tudo?`,
+    denyReply: "Tudo bem, cancelei as ações planejadas.",
+    executionContext,
+    requestedAt: Date.now(),
+  };
+  pendingPlans.set(plan.id, plan);
+  return plan;
+}
+
+function toPublicPendingPlan(plan: PendingPlanInternal): PendingApproval {
+  return {
+    id: plan.id,
+    toolName: "agent_plan",
+    summary: `Plano com ${plan.actions.length} ação(ões)`,
+    prompt: plan.prompt,
+    requestedAt: plan.requestedAt,
+    isBatch: true,
+    plannedActions: plan.actions.map((a) => ({ name: a.name, summary: a.summary })),
+  };
+}
+
 function parseTaggedToolCall(text: string): { name: string; args: Record<string, unknown> } | null {
   const match = text.match(TAG_FUNC) ?? text.match(TAG_FUNC_OPEN);
   if (!match) return null;
@@ -755,4 +838,166 @@ export async function resolvePendingApprovalDecision(approvalId: string, approve
     toolCalls: [approval.toolName],
     agentState: "success",
   };
+}
+
+export async function runAgentModeTurn(
+  client: OpenAI,
+  model: string,
+  visionModel: string,
+  nomeUsuario: string,
+  perfil: Perfil,
+  userMessage: string
+): Promise<AgentTurnResult> {
+  const system = buildAgentSystemPrompt(nomeUsuario);
+  const messages: ChatCompletionMessageParam[] = [
+    { role: "system", content: system },
+    { role: "user", content: userMessage },
+  ];
+  const tools = toolDefinitions as unknown as ChatCompletionTool[];
+  const executionContext: ToolExecutionContext = { client, visionModel };
+  const plannedActions: PlannedActionInternal[] = [];
+  let textResponse = "";
+
+  for (let step = 0; step < MAX_AGENT_ACTIONS && plannedActions.length < MAX_AGENT_ACTIONS; step++) {
+    let completion;
+    try {
+      completion = await client.chat.completions.create({
+        model,
+        messages,
+        tools,
+        tool_choice: "auto",
+        temperature: 0.2,
+        max_tokens: maxReplyTokens(),
+      });
+    } catch (error) {
+      const generated = extractFailedGeneration(error);
+      const parsed = parseTaggedToolCall(generated);
+      if (parsed) {
+        const repaired = repairToolCall(parsed.name as ToolName, parsed.args, userMessage);
+        const copy = buildApprovalCopy(repaired.name, repaired.args);
+        plannedActions.push({ name: repaired.name as ToolName, args: repaired.args, summary: copy.summary });
+        break;
+      }
+      throw error;
+    }
+
+    const msg = completion.choices[0]?.message;
+    if (!msg) break;
+
+    if (msg.tool_calls?.length) {
+      messages.push({
+        role: "assistant",
+        content: msg.content ?? null,
+        tool_calls: msg.tool_calls,
+      });
+
+      for (const tc of msg.tool_calls) {
+        if (tc.type !== "function") continue;
+        if (plannedActions.length >= MAX_AGENT_ACTIONS) break;
+
+        const name = tc.function.name as ToolName;
+        let args: Record<string, unknown> = {};
+        try {
+          args = tc.function.arguments ? (JSON.parse(tc.function.arguments) as Record<string, unknown>) : {};
+        } catch {
+          args = {};
+        }
+
+        const repaired = repairToolCall(name, args, userMessage);
+        const copy = buildApprovalCopy(repaired.name, repaired.args);
+        plannedActions.push({ name: repaired.name as ToolName, args: repaired.args, summary: copy.summary });
+
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: "[ação planejada — aguardando aprovação do usuário]",
+        });
+      }
+      continue;
+    }
+
+    textResponse = (msg.content ?? "").trim();
+
+    const tagMatch = parseTaggedToolCall(textResponse);
+    if (tagMatch) {
+      textResponse = textResponse.replace(TAG_FUNC, "").replace(TAG_FUNC_OPEN, "").trim();
+      const repaired = repairToolCall(tagMatch.name as ToolName, tagMatch.args, userMessage);
+      const copy = buildApprovalCopy(repaired.name, repaired.args);
+      plannedActions.push({ name: repaired.name as ToolName, args: repaired.args, summary: copy.summary });
+    }
+    break;
+  }
+
+  if (!plannedActions.length) {
+    if (textResponse) {
+      const turnoCurto: ChatMsg[] = [
+        { role: "user", content: userMessage },
+        { role: "assistant", content: textResponse },
+      ];
+      void aprender(client, model, turnoCurto, perfil).catch(() => {});
+    }
+    return {
+      reply: textResponse || "Sem resposta.",
+      perfil,
+      toolCalls: [],
+      agentState: "speaking",
+    };
+  }
+
+  const plan = createPendingPlan(plannedActions, executionContext);
+  return {
+    reply: plan.prompt,
+    perfil,
+    toolCalls: plannedActions.map((a) => a.name),
+    agentState: "awaiting_approval",
+    pendingApproval: toPublicPendingPlan(plan),
+  };
+}
+
+async function resolvePendingPlanApproval(planId: string, approved: boolean): Promise<ApprovalDecisionResult> {
+  cleanupPendingPlans();
+  const plan = pendingPlans.get(planId);
+  if (!plan) {
+    return {
+      reply: "Este plano expirou ou já foi resolvido.",
+      toolCalls: [],
+      agentState: "error",
+    };
+  }
+
+  pendingPlans.delete(planId);
+
+  if (!approved) {
+    return {
+      reply: plan.denyReply,
+      toolCalls: [],
+      agentState: "speaking",
+    };
+  }
+
+  const results: string[] = [];
+  const executedTools: string[] = [];
+
+  for (const action of plan.actions) {
+    try {
+      const result = await executeTool(action.name, action.args, plan.executionContext);
+      results.push(`✅ ${action.summary}: ${result}`);
+      executedTools.push(action.name);
+    } catch (e) {
+      results.push(`❌ ${action.summary}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return {
+    reply: results.join("\n"),
+    toolCalls: executedTools,
+    agentState: "success",
+  };
+}
+
+export async function resolveAnyApproval(approvalId: string, approved: boolean): Promise<ApprovalDecisionResult> {
+  if (pendingPlans.has(approvalId)) {
+    return resolvePendingPlanApproval(approvalId, approved);
+  }
+  return resolvePendingApprovalDecision(approvalId, approved);
 }

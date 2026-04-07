@@ -9,6 +9,8 @@ export type SkinMode = "default" | "hacker";
 
 export type LlmProvider = "local" | "groq" | "qwen";
 
+export type AgentMode = "conversa" | "agente";
+
 export type FurnitureType = 
   | "desk" 
   | "seating" 
@@ -77,6 +79,8 @@ function clampGrid(x: number, z: number): AgentGrid {
 }
 
 type Store = {
+  agentMode: AgentMode;
+  setAgentMode: (mode: AgentMode) => void;
   isStoreOpen: boolean;
   setStoreOpen: (open: boolean) => void;
   mood: AgentMood;
@@ -120,6 +124,8 @@ type Store = {
 export const useNeroStore = create<Store>()(
   persist(
     (set, get) => ({
+      agentMode: "conversa" as AgentMode,
+      setAgentMode: (agentMode) => set({ agentMode }),
       mood: "idle" as AgentMood,
       lastReply: "",
       llmProvider: "local" as LlmProvider,
@@ -184,6 +190,7 @@ export const useNeroStore = create<Store>()(
       name: "nero-settings",
       partialize: (s) => ({
         llmProvider: s.llmProvider,
+        agentMode: s.agentMode,
         localModel: s.localModel,
         groqModel: s.groqModel,
         qwenModel: s.qwenModel,
