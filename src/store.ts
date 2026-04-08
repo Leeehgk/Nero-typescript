@@ -7,6 +7,12 @@ export type AgentMood = "idle" | "listening" | "thinking" | "speaking" | "succes
 export type ThemeMode = "common" | "hacker" | "premium";
 export type SkinMode = "default" | "hacker";
 
+// Customização do Agente
+export type AgentShirtStyle = "casual" | "formal" | "esportivo";
+export type AgentShoeStyle = "tenis" | "social" | "bota";
+export type AgentHairStyle = "curto" | "longo" | "moicano";
+export type AgentEyeStyle = "normal" | "anime" | "cool";
+
 export type LlmProvider = "local" | "groq" | "qwen";
 
 export type AgentMode = "conversa" | "agente";
@@ -119,6 +125,14 @@ type Store = {
   setThemeMode: (theme: ThemeMode) => void;
   skinMode: SkinMode;
   setSkinMode: (skin: SkinMode) => void;
+  agentShirt: AgentShirtStyle;
+  setAgentShirt: (s: AgentShirtStyle) => void;
+  agentShoe: AgentShoeStyle;
+  setAgentShoe: (s: AgentShoeStyle) => void;
+  agentHair: AgentHairStyle;
+  setAgentHair: (s: AgentHairStyle) => void;
+  agentEye: AgentEyeStyle;
+  setAgentEye: (s: AgentEyeStyle) => void;
 };
 
 export const useNeroStore = create<Store>()(
@@ -185,6 +199,14 @@ export const useNeroStore = create<Store>()(
       setThemeMode: (themeMode) => set({ themeMode }),
       skinMode: "default",
       setSkinMode: (skinMode) => set({ skinMode }),
+      agentShirt: "casual",
+      setAgentShirt: (agentShirt) => set({ agentShirt }),
+      agentShoe: "tenis",
+      setAgentShoe: (agentShoe) => set({ agentShoe }),
+      agentHair: "curto",
+      setAgentHair: (agentHair) => set({ agentHair }),
+      agentEye: "normal",
+      setAgentEye: (agentEye) => set({ agentEye }),
     }),
     {
       name: "nero-settings",
@@ -195,6 +217,10 @@ export const useNeroStore = create<Store>()(
         groqModel: s.groqModel,
         qwenModel: s.qwenModel,
         furnitureList: s.furnitureList,
+        agentShirt: s.agentShirt,
+        agentShoe: s.agentShoe,
+        agentHair: s.agentHair,
+        agentEye: s.agentEye,
       }),
     }
   )

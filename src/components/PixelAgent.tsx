@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
+import { Outlines } from "@react-three/drei";
 import { useNeroStore, type AgentMood, type FurnitureItem } from "../store";
 import { calculatePath, createCollisionGrid } from "./pathfinding";
 
@@ -79,6 +80,8 @@ export function PixelAgent() {
   const group = useRef<Group>(null);
   const armL = useRef<Group>(null);
   const armR = useRef<Group>(null);
+  const legL = useRef<Group>(null);
+  const legR = useRef<Group>(null);
 
   const furnitureList = useNeroStore((s) => s.furnitureList) || [];
   
@@ -97,6 +100,10 @@ export function PixelAgent() {
 
   const setAgentDebug = useNeroStore((s) => s.setAgentDebug);
   const skinMode = useNeroStore((s) => s.skinMode);
+  const agentShirt = useNeroStore((s) => s.agentShirt);
+  const agentShoe = useNeroStore((s) => s.agentShoe);
+  const agentHair = useNeroStore((s) => s.agentHair);
+  const agentEye = useNeroStore((s) => s.agentEye);
 
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime;
@@ -121,7 +128,6 @@ export function PixelAgent() {
     };
 
     // Força o pathfinding para o trajeto da inicialização que ignorava a Rota nodal.
-    // MAS adicionamos cacheState pra não destruir 60fps de recalculo caso a Engine diga [].
     if (pathRef.current.length === 0 && !lastPathFailedAtRef.current && !samePoint(targetRef.current, {x: Math.round(posRef.current.x), z: Math.round(posRef.current.z)})) {
        const hasReachedFallback = Math.hypot(targetRef.current.x - posRef.current.x, targetRef.current.z - posRef.current.z) < 0.05;
        if (!hasReachedFallback) navigateTo(targetRef.current);
@@ -167,7 +173,7 @@ export function PixelAgent() {
       nextWanderAtRef.current = t + 1.3 + Math.random() * 1.6;
     }
     
-    // Avança no Caminho Nodal (Waypoints calculados pelo A*)
+    // Avança no Caminho Nodal
     let moveDx = 0;
     let moveDz = 0;
     let moveDist = 0;
@@ -179,30 +185,22 @@ export function PixelAgent() {
       moveDist = Math.hypot(moveDx, moveDz);
 
       if (moveDist < 0.08) {
-        pathRef.current.shift(); // Consome o waypoint alcançado
+        pathRef.current.shift();
         if (pathRef.current.length > 0) {
            const nextWaypoint = pathRef.current[0];
            moveDx = nextWaypoint.x - posRef.current.x;
            moveDz = nextWaypoint.z - posRef.current.z;
            moveDist = Math.hypot(moveDx, moveDz);
         } else {
-           moveDx = 0;
-           moveDz = 0;
-           moveDist = 0;
+           moveDx = 0; moveDz = 0; moveDist = 0;
         }
       }
     } else {
-      // Sem rota ou finalizado. Faz o "coasting" (deslizamento) se ele já estiver 
-      // milimetros do Target real pra zerar a variável, mas evita ignorar parede.
       const distToIdle = Math.hypot(targetRef.current.x - posRef.current.x, targetRef.current.z - posRef.current.z);
       if (distToIdle < 0.2) {
          moveDx = targetRef.current.x - posRef.current.x;
          moveDz = targetRef.current.z - posRef.current.z;
          moveDist = distToIdle;
-      } else {
-         moveDx = 0;
-         moveDz = 0;
-         moveDist = 0;
       }
     }
 
@@ -227,7 +225,7 @@ export function PixelAgent() {
     facingRef.current = dampAngle(facingRef.current, targetRotation, dt);
 
     if (group.current) {
-      const walkBob = walking ? Math.sin(t * 13.5) * 0.075 : 0;
+      const walkBob = walking ? Math.sin(t * 13.5) * 0.025 : 0;
       const idleBob = walking ? 0 : Math.sin(t * params.idleSpeed) * params.bob;
       group.current.position.set(posRef.current.x, 0.72 + walkBob + idleBob, posRef.current.z);
       group.current.rotation.y = facingRef.current;
@@ -240,6 +238,15 @@ export function PixelAgent() {
     if (armR.current) {
       const amp = walking ? 0.38 : params.arm;
       armR.current.rotation.x = -Math.sin(t * (walking ? 12 : params.idleSpeed * 1.05)) * amp * 0.95;
+    }
+
+    if (legL.current) {
+      const legAmp = walking ? 0.45 : 0;
+      legL.current.rotation.x = -Math.sin(t * (walking ? 13 : 0)) * legAmp;
+    }
+    if (legR.current) {
+      const legAmp = walking ? 0.45 : 0;
+      legR.current.rotation.x = Math.sin(t * (walking ? 13 : 0)) * legAmp;
     }
 
     if (t - lastDebugSyncAtRef.current > 0.12) {
@@ -258,113 +265,391 @@ export function PixelAgent() {
     }
   });
 
-  const skin = "#ffd4b3";
-  const shirt = "#3ecfb0";
-  const shirtDark = "#2db89a";
-  const pants = "#5b7cff";
-  const hair = "#f4d35e";
-  const shoe = "#4a4a55";
+  /*
+   * =================================================
+   *   CHIBI 3D CUSTOMIZÁVEL
+   *   Cores dinâmicas baseadas em agentShirt/Shoe/Hair/Eye
+   * =================================================
+   */
+
+  // === Cores da Camisa ===
+  const shirtColors: Record<string, { main: string; dark: string }> = {
+    casual:    { main: "#3ecfb0", dark: "#2aad94" },
+    formal:    { main: "#2c3e6b", dark: "#1a2744" },
+    esportivo: { main: "#e63946", dark: "#b52d38" },
+  };
+  const sc = shirtColors[agentShirt] || shirtColors.casual;
+
+  // === Cores dos Sapatos ===
+  const shoeColors: Record<string, string> = {
+    tenis: "#3d3d4a",
+    social: "#5c3a1e",
+    bota: "#1a1a1a",
+  };
+  const shoeCol = shoeColors[agentShoe] || shoeColors.tenis;
+
+  // === Cores e config do Cabelo ===
+  const hairStyles: Record<string, { main: string; dark: string; style: string }> = {
+    curto:   { main: "#f4d35e", dark: "#c9a032", style: "curto" },
+    longo:   { main: "#8B5E3C", dark: "#5C3A1E", style: "longo" },
+    moicano: { main: "#9b59b6", dark: "#6c3483", style: "moicano" },
+  };
+  const hs = hairStyles[agentHair] || hairStyles.curto;
+
+  // === Cores dos Olhos ===
+  const eyeStyles: Record<string, { irisColor: string; size: number; style: string }> = {
+    normal: { irisColor: "#4a90d9", size: 0.055, style: "normal" },
+    anime:  { irisColor: "#2ecc71", size: 0.065, style: "anime" },
+    cool:   { irisColor: "#1a1a1a", size: 0.055, style: "cool" },
+  };
+  const es = eyeStyles[agentEye] || eyeStyles.normal;
+
+  const skin = "#ffcba4";
+  const skinLight = "#ffe4cc";
+  const outline = "#1e1e2e";
+  const cheekPink = "#ff8888";
+  const mouthCol = "#c9616b";
 
   return (
     <group ref={group} position={[initialTarget.x, 0.72, initialTarget.z]} scale={1.08}>
-      <mesh position={[-0.11, -0.02, 0.06]} castShadow>
-        <boxGeometry args={[0.2, 0.12, 0.26]} />
-        <meshStandardMaterial color={shoe} roughness={0.7} />
-      </mesh>
-      <mesh position={[0.11, -0.02, 0.06]} castShadow>
-        <boxGeometry args={[0.2, 0.12, 0.26]} />
-        <meshStandardMaterial color={shoe} roughness={0.7} />
-      </mesh>
-      <mesh position={[-0.1, 0.16, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.32, 0.2]} />
-        <meshStandardMaterial color={pants} roughness={0.75} />
-      </mesh>
-      <mesh position={[0.1, 0.16, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.32, 0.2]} />
-        <meshStandardMaterial color={pants} roughness={0.75} />
-      </mesh>
-      <mesh position={[0, 0.48, 0]} castShadow>
-        <boxGeometry args={[0.52, 0.42, 0.28]} />
-        <meshStandardMaterial color={shirt} roughness={0.55} />
-      </mesh>
-      <mesh position={[0, 0.52, 0.15]}>
-        <planeGeometry args={[0.18, 0.12]} />
-        <meshStandardMaterial color={shirtDark} roughness={0.5} />
-      </mesh>
-      <group ref={armL} position={[-0.34, 0.52, 0]}>
-        <mesh castShadow position={[0, -0.12, 0]}>
-          <boxGeometry args={[0.14, 0.32, 0.14]} />
-          <meshStandardMaterial color={shirt} roughness={0.55} />
+
+      {/* ============ PERNAS ============ */}
+      <group ref={legL} position={[-0.09, 0.1, 0]}>
+        <mesh position={[0, -0.04, 0]} castShadow>
+          <capsuleGeometry args={[0.06, 0.1, 6, 12]} />
+          <meshStandardMaterial color={sc.main} roughness={0.65} />
+          <Outlines thickness={0.02} color={outline} />
+        </mesh>
+        <mesh position={[0, -0.18, 0.02]} scale={[1, 0.55, agentShoe === "bota" ? 1.1 : 1.3]} castShadow>
+          <sphereGeometry args={[agentShoe === "bota" ? 0.08 : 0.07, 16, 16]} />
+          <meshStandardMaterial color={shoeCol} roughness={0.7} />
+          <Outlines thickness={0.02} color={outline} />
         </mesh>
       </group>
-      <group ref={armR} position={[0.34, 0.52, 0]}>
-        <mesh castShadow position={[0, -0.12, 0]}>
-          <boxGeometry args={[0.14, 0.32, 0.14]} />
-          <meshStandardMaterial color={shirt} roughness={0.55} />
+      <group ref={legR} position={[0.09, 0.1, 0]}>
+        <mesh position={[0, -0.04, 0]} castShadow>
+          <capsuleGeometry args={[0.06, 0.1, 6, 12]} />
+          <meshStandardMaterial color={sc.main} roughness={0.65} />
+          <Outlines thickness={0.02} color={outline} />
+        </mesh>
+        <mesh position={[0, -0.18, 0.02]} scale={[1, 0.55, agentShoe === "bota" ? 1.1 : 1.3]} castShadow>
+          <sphereGeometry args={[agentShoe === "bota" ? 0.08 : 0.07, 16, 16]} />
+          <meshStandardMaterial color={shoeCol} roughness={0.7} />
+          <Outlines thickness={0.02} color={outline} />
         </mesh>
       </group>
-      <mesh position={[0, 0.92, 0]} castShadow>
-        <boxGeometry args={[0.48, 0.44, 0.42]} />
-        <meshStandardMaterial color={skin} roughness={0.65} />
+
+      {/* ============ CORPINHO ============ */}
+      <mesh position={[0, 0.28, 0]} scale={[1, 1.1, 0.85]} castShadow>
+        <sphereGeometry args={[0.18, 24, 24]} />
+        <meshStandardMaterial color={sc.main} roughness={0.5} metalness={0.05} />
+        <Outlines thickness={0.02} color={outline} />
       </mesh>
-      <mesh position={[0, 1.18, -0.02]} castShadow>
-        <boxGeometry args={[0.52, 0.22, 0.46]} />
-        <meshStandardMaterial color={hair} roughness={0.85} />
+      <mesh position={[0, 0.18, 0.01]} scale={[0.95, 0.7, 0.8]}>
+        <sphereGeometry args={[0.16, 20, 20]} />
+        <meshStandardMaterial color={sc.dark} roughness={0.5} />
       </mesh>
-      <mesh position={[0, 1.32, 0.08]} castShadow>
-        <boxGeometry args={[0.36, 0.1, 0.36]} />
-        <meshStandardMaterial color={hair} roughness={0.85} />
+      {/* Gola para formal */}
+      {agentShirt === "formal" && (
+        <mesh position={[0, 0.42, 0.08]} scale={[0.8, 0.3, 0.5]}>
+          <sphereGeometry args={[0.08, 12, 12]} />
+          <meshStandardMaterial color="#f0f0f0" roughness={0.4} />
+        </mesh>
+      )}
+      {/* Faixa para esportivo */}
+      {agentShirt === "esportivo" && (
+        <mesh position={[0, 0.3, 0.155]} scale={[1, 0.15, 0.1]}>
+          <sphereGeometry args={[0.16, 12, 12]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.4} />
+        </mesh>
+      )}
+
+      {/* ============ BRACINHOS ============ */}
+      <group ref={armL} position={[-0.22, 0.32, 0]}>
+        <mesh castShadow position={[0, -0.08, 0]}>
+          <capsuleGeometry args={[0.05, 0.1, 6, 12]} />
+          <meshStandardMaterial color={sc.main} roughness={0.5} />
+          <Outlines thickness={0.02} color={outline} />
+        </mesh>
+        <mesh position={[0, -0.18, 0]} castShadow>
+          <sphereGeometry args={[0.04, 12, 12]} />
+          <meshStandardMaterial color={skin} roughness={0.55} />
+          <Outlines thickness={0.015} color={outline} />
+        </mesh>
+      </group>
+      <group ref={armR} position={[0.22, 0.32, 0]}>
+        <mesh castShadow position={[0, -0.08, 0]}>
+          <capsuleGeometry args={[0.05, 0.1, 6, 12]} />
+          <meshStandardMaterial color={sc.main} roughness={0.5} />
+          <Outlines thickness={0.02} color={outline} />
+        </mesh>
+        <mesh position={[0, -0.18, 0]} castShadow>
+          <sphereGeometry args={[0.04, 12, 12]} />
+          <meshStandardMaterial color={skin} roughness={0.55} />
+          <Outlines thickness={0.015} color={outline} />
+        </mesh>
+      </group>
+
+      {/* ============ PESCOÇO ============ */}
+      <mesh position={[0, 0.44, 0]}>
+        <cylinderGeometry args={[0.06, 0.07, 0.06, 12]} />
+        <meshStandardMaterial color={skin} roughness={0.5} />
       </mesh>
+
+      {/* ============ CABEÇÃO CHIBI ============ */}
+      <mesh position={[0, 0.72, 0]} castShadow>
+        <sphereGeometry args={[0.32, 32, 32]} />
+        <meshStandardMaterial color={skin} roughness={0.5} />
+        <Outlines thickness={0.022} color={outline} />
+      </mesh>
+
+      {/* ============ CABELO ============ */}
+      {hs.style === "curto" && (
+        <>
+          <mesh position={[0, 0.88, -0.02]} scale={[1.12, 0.6, 1.08]} castShadow>
+            <sphereGeometry args={[0.32, 32, 32]} />
+            <meshStandardMaterial color={hs.main} roughness={0.75} />
+            <Outlines thickness={0.02} color={hs.dark} />
+          </mesh>
+          <mesh position={[0, 0.82, 0.22]} scale={[1.05, 0.35, 0.4]}>
+            <sphereGeometry args={[0.28, 24, 24]} />
+            <meshStandardMaterial color={hs.main} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, 0.72, -0.18]} scale={[1, 0.7, 0.55]} castShadow>
+            <sphereGeometry args={[0.3, 24, 24]} />
+            <meshStandardMaterial color={hs.dark} roughness={0.8} />
+            <Outlines thickness={0.018} color={outline} />
+          </mesh>
+        </>
+      )}
+      {hs.style === "longo" && (
+        <>
+          <mesh position={[0, 0.88, -0.02]} scale={[1.12, 0.6, 1.08]} castShadow>
+            <sphereGeometry args={[0.32, 32, 32]} />
+            <meshStandardMaterial color={hs.main} roughness={0.75} />
+            <Outlines thickness={0.02} color={hs.dark} />
+          </mesh>
+          <mesh position={[0, 0.82, 0.22]} scale={[1.05, 0.35, 0.4]}>
+            <sphereGeometry args={[0.28, 24, 24]} />
+            <meshStandardMaterial color={hs.main} roughness={0.75} />
+          </mesh>
+          {/* Mechas longas laterais */}
+          <mesh position={[-0.26, 0.62, -0.02]} scale={[0.45, 0.9, 0.55]}>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshStandardMaterial color={hs.main} roughness={0.75} />
+          </mesh>
+          <mesh position={[0.26, 0.62, -0.02]} scale={[0.45, 0.9, 0.55]}>
+            <sphereGeometry args={[0.2, 16, 16]} />
+            <meshStandardMaterial color={hs.main} roughness={0.75} />
+          </mesh>
+          {/* Parte de trás longa */}
+          <mesh position={[0, 0.6, -0.18]} scale={[1, 0.9, 0.6]} castShadow>
+            <sphereGeometry args={[0.3, 24, 24]} />
+            <meshStandardMaterial color={hs.dark} roughness={0.8} />
+            <Outlines thickness={0.018} color={outline} />
+          </mesh>
+        </>
+      )}
+      {hs.style === "moicano" && (
+        <>
+          {/* Base raspada */}
+          <mesh position={[0, 0.85, -0.02]} scale={[1.08, 0.5, 1.05]} castShadow>
+            <sphereGeometry args={[0.32, 32, 32]} />
+            <meshStandardMaterial color={hs.dark} roughness={0.85} />
+            <Outlines thickness={0.02} color={outline} />
+          </mesh>
+          {/* Crista do moicano — cápsulas empilhadas no topo */}
+          <mesh position={[0, 1.05, 0]} rotation={[0.3, 0, 0]} castShadow>
+            <capsuleGeometry args={[0.06, 0.18, 8, 16]} />
+            <meshStandardMaterial color={hs.main} roughness={0.6} />
+            <Outlines thickness={0.02} color={hs.dark} />
+          </mesh>
+          <mesh position={[0, 0.95, 0.05]} rotation={[0.5, 0, 0]}>
+            <capsuleGeometry args={[0.05, 0.12, 6, 12]} />
+            <meshStandardMaterial color={hs.main} roughness={0.6} />
+          </mesh>
+        </>
+      )}
+
+      {/* ============ ROSTO ============ */}
       {skinMode === "hacker" ? (
-        <group position={[0, 0.92, 0.22]}>
-          <mesh position={[0, -0.02, 0]}>
-            <boxGeometry args={[0.5, 0.46, 0.02]} />
-            <meshStandardMaterial color="#f0f0f0" roughness={0.7} />
+        <group position={[0, 0.72, 0]}>
+          {/* ===== MÁSCARA GUY FAWKES ===== */}
+          {/* Base da máscara — disco branco cobrindo a face */}
+          <mesh position={[0, 0, 0.315]} scale={[0.85, 0.95, 0.15]}>
+            <sphereGeometry args={[0.3, 32, 32]} />
+            <meshStandardMaterial color="#f5f0e8" roughness={0.4} />
+            <Outlines thickness={0.015} color={outline} />
           </mesh>
-          <mesh position={[-0.12, 0.05, 0.012]} rotation={[0, 0, 0.15]}>
-            <boxGeometry args={[0.14, 0.03, 0.02]} />
-            <meshBasicMaterial color="#1a1a1a" />
+          {/* Sobrancelhas arqueadas estilo Guy Fawkes */}
+          <mesh position={[-0.1, 0.08, 0.33]} rotation={[0, 0, 0.4]} scale={[1, 1, 0.3]}>
+            <capsuleGeometry args={[0.012, 0.07, 4, 8]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
           </mesh>
-          <mesh position={[0.12, 0.05, 0.012]} rotation={[0, 0, -0.15]}>
-            <boxGeometry args={[0.14, 0.03, 0.02]} />
-            <meshBasicMaterial color="#1a1a1a" />
+          <mesh position={[0.1, 0.08, 0.33]} rotation={[0, 0, -0.4]} scale={[1, 1, 0.3]}>
+            <capsuleGeometry args={[0.012, 0.07, 4, 8]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
           </mesh>
-          <mesh position={[0, -0.1, 0.012]}>
-            <boxGeometry args={[0.2, 0.02, 0.02]} />
-            <meshBasicMaterial color="#1a1a1a" />
+          {/* Olhos — triângulos escuros (losangos achatados) */}
+          <mesh position={[-0.09, 0.02, 0.34]} scale={[1, 1.3, 0.2]} rotation={[0, 0, Math.PI / 4]}>
+            <sphereGeometry args={[0.03, 4, 4]} />
+            <meshStandardMaterial color="#111" roughness={0.3} flatShading />
           </mesh>
-          <mesh position={[-0.1, -0.12, 0.012]} rotation={[0, 0, -0.7]}>
-            <boxGeometry args={[0.08, 0.02, 0.02]} />
-            <meshBasicMaterial color="#1a1a1a" />
+          <mesh position={[0.09, 0.02, 0.34]} scale={[1, 1.3, 0.2]} rotation={[0, 0, Math.PI / 4]}>
+            <sphereGeometry args={[0.03, 4, 4]} />
+            <meshStandardMaterial color="#111" roughness={0.3} flatShading />
           </mesh>
-          <mesh position={[0.1, -0.12, 0.012]} rotation={[0, 0, 0.7]}>
-            <boxGeometry args={[0.08, 0.02, 0.02]} />
-            <meshBasicMaterial color="#1a1a1a" />
+          {/* Bochechas rosadas da máscara */}
+          <mesh position={[-0.14, -0.04, 0.33]} scale={[1, 1, 0.2]}>
+            <sphereGeometry args={[0.035, 12, 12]} />
+            <meshStandardMaterial color="#d4736a" roughness={0.8} transparent opacity={0.6} />
+          </mesh>
+          <mesh position={[0.14, -0.04, 0.33]} scale={[1, 1, 0.2]}>
+            <sphereGeometry args={[0.035, 12, 12]} />
+            <meshStandardMaterial color="#d4736a" roughness={0.8} transparent opacity={0.6} />
+          </mesh>
+          {/* Bigode fino estilo Guy Fawkes */}
+          <mesh position={[-0.04, -0.08, 0.34]} rotation={[0, 0, 0.5]} scale={[1, 1, 0.3]}>
+            <capsuleGeometry args={[0.006, 0.04, 4, 8]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
+          </mesh>
+          <mesh position={[0.04, -0.08, 0.34]} rotation={[0, 0, -0.5]} scale={[1, 1, 0.3]}>
+            <capsuleGeometry args={[0.006, 0.04, 4, 8]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
+          </mesh>
+          {/* Cavanhaque pontudo */}
+          <mesh position={[0, -0.15, 0.33]} rotation={[0.2, 0, 0]} scale={[0.6, 1.2, 0.3]}>
+            <capsuleGeometry args={[0.012, 0.04, 4, 8]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.5} />
+          </mesh>
+          {/* Sorriso fino */}
+          <mesh position={[0, -0.1, 0.345]} rotation={[0, 0, Math.PI / 2]} scale={[1, 1, 0.3]}>
+            <capsuleGeometry args={[0.006, 0.08, 4, 8]} />
+            <meshStandardMaterial color="#c94040" roughness={0.5} />
+          </mesh>
+          {/* Cantos do sorriso levantados */}
+          <mesh position={[-0.05, -0.09, 0.34]} rotation={[0, 0, 0.6]} scale={[1, 1, 0.3]}>
+            <capsuleGeometry args={[0.005, 0.02, 4, 8]} />
+            <meshStandardMaterial color="#c94040" roughness={0.5} />
+          </mesh>
+          <mesh position={[0.05, -0.09, 0.34]} rotation={[0, 0, -0.6]} scale={[1, 1, 0.3]}>
+            <capsuleGeometry args={[0.005, 0.02, 4, 8]} />
+            <meshStandardMaterial color="#c94040" roughness={0.5} />
           </mesh>
         </group>
       ) : (
-        <>
-          <mesh position={[-0.11, 0.95, 0.22]}>
-            <boxGeometry args={[0.1, 0.1, 0.04]} />
-            <meshStandardMaterial color="#fff" />
+        <group position={[0, 0.72, 0]}>
+          {/* ===== OLHOS ===== */}
+          {es.style === "cool" ? (
+            <>
+              {/* Óculos escuros — dois discos escuros */}
+              <mesh position={[-0.1, 0.02, 0.315]} scale={[1.2, 0.7, 0.15]}>
+                <sphereGeometry args={[0.06, 20, 20]} />
+                <meshStandardMaterial color="#111" roughness={0.1} metalness={0.4} />
+                <Outlines thickness={0.012} color={outline} />
+              </mesh>
+              <mesh position={[0.1, 0.02, 0.315]} scale={[1.2, 0.7, 0.15]}>
+                <sphereGeometry args={[0.06, 20, 20]} />
+                <meshStandardMaterial color="#111" roughness={0.1} metalness={0.4} />
+                <Outlines thickness={0.012} color={outline} />
+              </mesh>
+              {/* Ponte dos óculos */}
+              <mesh position={[0, 0.02, 0.33]} rotation={[0, 0, Math.PI / 2]} scale={[1, 1, 0.3]}>
+                <capsuleGeometry args={[0.006, 0.04, 4, 8]} />
+                <meshStandardMaterial color="#333" roughness={0.3} metalness={0.5} />
+              </mesh>
+              {/* Brilho nos óculos */}
+              <mesh position={[-0.09, 0.04, 0.335]}>
+                <sphereGeometry args={[0.012, 8, 8]} />
+                <meshBasicMaterial color="#ffffff" transparent opacity={0.4} />
+              </mesh>
+              <mesh position={[0.09, 0.04, 0.335]}>
+                <sphereGeometry args={[0.012, 8, 8]} />
+                <meshBasicMaterial color="#ffffff" transparent opacity={0.4} />
+              </mesh>
+            </>
+          ) : (
+            <>
+              {/* Olho Esquerdo */}
+              <mesh position={[-0.1, 0.02, 0.315]} scale={[1, 1, 0.2]}>
+                <sphereGeometry args={[es.size, 24, 24]} />
+                <meshStandardMaterial color="#ffffff" roughness={0.2} />
+                <Outlines thickness={0.01} color={outline} />
+              </mesh>
+              <mesh position={[-0.095, 0.0, 0.325]} scale={[1, 1, 0.2]}>
+                <sphereGeometry args={[es.size * 0.72, 20, 20]} />
+                <meshStandardMaterial color={es.irisColor} roughness={0.3} metalness={0.1} />
+              </mesh>
+              <mesh position={[-0.09, -0.002, 0.33]} scale={[1, 1, 0.2]}>
+                <sphereGeometry args={[es.size * 0.44, 16, 16]} />
+                <meshStandardMaterial color="#111128" roughness={0.1} />
+              </mesh>
+              <mesh position={[-0.078, 0.016, 0.335]}>
+                <sphereGeometry args={[0.009, 10, 10]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              <mesh position={[-0.105, -0.01, 0.335]}>
+                <sphereGeometry args={[0.005, 8, 8]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+
+              {/* Olho Direito */}
+              <mesh position={[0.1, 0.02, 0.315]} scale={[1, 1, 0.2]}>
+                <sphereGeometry args={[es.size, 24, 24]} />
+                <meshStandardMaterial color="#ffffff" roughness={0.2} />
+                <Outlines thickness={0.01} color={outline} />
+              </mesh>
+              <mesh position={[0.095, 0.0, 0.325]} scale={[1, 1, 0.2]}>
+                <sphereGeometry args={[es.size * 0.72, 20, 20]} />
+                <meshStandardMaterial color={es.irisColor} roughness={0.3} metalness={0.1} />
+              </mesh>
+              <mesh position={[0.09, -0.002, 0.33]} scale={[1, 1, 0.2]}>
+                <sphereGeometry args={[es.size * 0.44, 16, 16]} />
+                <meshStandardMaterial color="#111128" roughness={0.1} />
+              </mesh>
+              <mesh position={[0.102, 0.016, 0.335]}>
+                <sphereGeometry args={[0.009, 10, 10]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+              <mesh position={[0.078, -0.01, 0.335]}>
+                <sphereGeometry args={[0.005, 8, 8]} />
+                <meshBasicMaterial color="#ffffff" />
+              </mesh>
+            </>
+          )}
+
+          {/* Sobrancelhas */}
+          <mesh position={[-0.1, 0.08, 0.3]} rotation={[0.1, 0, 0.15]}>
+            <capsuleGeometry args={[0.01, 0.05, 4, 8]} />
+            <meshStandardMaterial color={hs.dark} roughness={0.6} />
           </mesh>
-          <mesh position={[0.11, 0.95, 0.22]}>
-            <boxGeometry args={[0.1, 0.1, 0.04]} />
-            <meshStandardMaterial color="#fff" />
+          <mesh position={[0.1, 0.08, 0.3]} rotation={[0.1, 0, -0.15]}>
+            <capsuleGeometry args={[0.01, 0.05, 4, 8]} />
+            <meshStandardMaterial color={hs.dark} roughness={0.6} />
           </mesh>
-          <mesh position={[-0.11, 0.95, 0.24]}>
-            <boxGeometry args={[0.05, 0.06, 0.02]} />
-            <meshStandardMaterial color="#1a1a22" />
+
+          {/* Bochechas rosadas */}
+          <mesh position={[-0.19, -0.06, 0.22]}>
+            <sphereGeometry args={[0.045, 14, 14]} />
+            <meshStandardMaterial color={cheekPink} roughness={0.9} transparent opacity={0.4} />
           </mesh>
-          <mesh position={[0.11, 0.95, 0.24]}>
-            <boxGeometry args={[0.05, 0.06, 0.02]} />
-            <meshStandardMaterial color="#1a1a22" />
+          <mesh position={[0.19, -0.06, 0.22]}>
+            <sphereGeometry args={[0.045, 14, 14]} />
+            <meshStandardMaterial color={cheekPink} roughness={0.9} transparent opacity={0.4} />
           </mesh>
-          <mesh position={[0, 0.82, 0.22]}>
-            <boxGeometry args={[0.12, 0.03, 0.02]} />
-            <meshStandardMaterial color="#c87a7a" />
+
+          {/* Boquinha */}
+          <mesh position={[0, -0.1, 0.3]} rotation={[0.2, 0, Math.PI / 2]}>
+            <capsuleGeometry args={[0.012, 0.04, 6, 10]} />
+            <meshStandardMaterial color={mouthCol} roughness={0.5} />
           </mesh>
-        </>
+
+          {/* Nariz */}
+          <mesh position={[0, -0.03, 0.32]}>
+            <sphereGeometry args={[0.012, 10, 10]} />
+            <meshStandardMaterial color={skinLight} roughness={0.5} />
+          </mesh>
+        </group>
       )}
     </group>
   );
