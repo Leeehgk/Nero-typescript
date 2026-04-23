@@ -41,18 +41,14 @@ O README abaixo ja reflete o comportamento atual do projeto, incluindo as implem
 - TTS neural servido por `POST /api/tts`.
 - Fallback para TTS do navegador se o audio do servidor falhar.
 
-### Memoria e LLM
+### Memoria e LLM (Cofre Obsidian)
 - Alternancia entre provedor local e Groq pela interface.
 - Respostas curtas por padrao para manter a conversa rapida.
-- Memoria curta persistida em `memoria_nero.json` e `perfil_nero.json`.
-- Consulta e construcao iterativa dos fatos em segundo plano pelo proprio Nero.
-
-### Memoria
-
-- Memoria curta persistida em `memoria_nero.json`.
-- Perfil persistido em `perfil_nero.json`.
-- Limpeza rapida por comando de voz ou texto.
-- Consulta dos fatos aprendidos pelo proprio Nero.
+- O Nero usa a pasta `Nero-brain` como um **Cofre Obsidian** real (Markdown).
+- Extração de fatos e aprendizado automático sem custo de LLM via regex (Nero aprende seu nome, hábitos, profissão em tempo real).
+- O perfil de longo prazo e a base de conhecimento ficam salvos em `.md` legível por humanos.
+- O histórico da sessão é encapsulado dentro do cofre para não sujar sua raiz.
+- O Nero agora possui ferramentas autônomas de agente para: buscar no próprio cérebro antes da internet, ler notas, listar conteúdo e salvar novos aprendizados no cofre.
 
 ### Ferramentas
 
@@ -300,15 +296,18 @@ A cena tambem recebeu ajustes de estabilidade:
 - `error boundary` na interface principal
 - remocao de efeitos que estavam lavando cantos do mapa
 
-## Memoria e arquivos gerados
+## Memoria e arquivos gerados (Obsidian-Native)
 
-Arquivos persistidos na raiz do projeto:
+O cérebro do Nero é inteiramente mantido na pasta `Nero-brain`, que funciona nativamente como um cofre do software Obsidian.
 
-- `memoria_nero.json`: memoria curta com ate 30 mensagens
-- `perfil_nero.json`: fatos aprendidos sobre o usuario, com limite de 50
-- `anotacoes_nero.txt`: anotacoes criadas pela ferramenta
-- `Prints/`: capturas de tela feitas pelo agente
-- `config_eon.json`: configuracao do nome do usuario
+- `Nero-brain/Perfil/Usuário.md`: Onde o Nero guarda tudo o que sabe de você de forma estruturada.
+- `Nero-brain/Conversas/`: Histórico gerado pelo Nero automaticamente ao fechar sessões de chat longas.
+- `Nero-brain/Base de Conhecimento/`: Onde o Nero registra pesquisas de internet importantes.
+- `Nero-brain/Aprendizado/`: Anotações soltas solicitadas por você.
+- `Nero-brain/.obsidian/memoria_contexto.json`: Persistência invisível da memória recente.
+- `anotacoes_nero.txt`: Arquivo de log rápido legado.
+- `Prints/`: capturas de tela feitas pelo agente autônomo.
+- `config_eon.json`: configuracao do nome do usuario.
 
 ## Estrutura resumida
 
@@ -331,11 +330,14 @@ Nero-typescript/
 |  |- llm.ts
 |  |- memory.ts
 |  |- tools.ts
+|  |- obsidian.ts
 |  |- tts-edge.ts
 |  `- paths.ts
+|- Nero-brain/
+|  |- Perfil/
+|  |- Conversas/
+|  `- Base de Conhecimento/
 |- .env.example
-|- memoria_nero.json
-|- perfil_nero.json
 `- README.md
 ```
 

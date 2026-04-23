@@ -21,7 +21,7 @@ const typeLabels: Record<FurnitureType, string> = {
   nightstand: "🪑 Criado-Mudo",
   bonsai: "🎋 Bonsai Zen",
   mirror: "🪞 Espelho de Pé",
-  statue: "🗿 Estátua Abstrata",
+  snake: "🐍 Cobra 3D",
   wall_clock: "🕰️ Relógio Analógico",
   speaker: "🔊 Torre de Som",
   fridge: "🧊 Geladeira Inox",
@@ -50,7 +50,7 @@ export function FurnitureStorePanel({ onClose }: { onClose: () => void }) {
 
     if (type === "rug") {
       itemConfig.position[1] = 0.02; // lift rug slightly
-    } else if (type === "globe" || type === "plant" || type === "bonsai" || type === "statue" || type === "mirror" || type === "speaker") {
+    } else if (type === "globe" || type === "plant" || type === "bonsai" || type === "snake" || type === "mirror" || type === "speaker") {
       itemConfig.position[1] = 0;
     } else if (type === "wall_clock") {
       itemConfig.position[1] = 2.0; // Padrão mais alto para relógios

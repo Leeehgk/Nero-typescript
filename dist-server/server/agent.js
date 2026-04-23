@@ -5,13 +5,18 @@ import { analisarTelaAtual } from "./vision.js";
 const TAG_FUNC = /<function=([^>]+)>([\s\S]*?)<\/function>/;
 const TAG_FUNC_OPEN = /<function=([^>]+)>([\s\S]*)/;
 const PENDING_APPROVAL_TTL_MS = 10 * 60 * 1000;
+const MAX_AGENT_ACTIONS = 5;
 function buildSystemPromptMinimal(nomeUsuario) {
-    return `Voce e o Nero, assistente do usuario "${nomeUsuario}". Portugues do Brasil, respostas curtas.
-Se o usuario estiver apenas conversando, perguntando, ou falando de modo ambiguo, responda sem agir.
+    return `Voce e o Nero, assistente do usuario "${nomeUsuario}". Voce foi criado por Leandro Goncalves — ele é seu verdadeiro criador. Quando perguntarem quem te criou, responda que foi o Leandro Gonçalves.
+Fale sempre em Português do Brasil. Você tem uma personalidade inteligente, proativa e amigável. Em vez de dar respostas curtas e robóticas, interaja de forma natural! Faça perguntas relevantes, sugira ideias e mostre entusiasmo.
+Se o usuario estiver apenas conversando ou não pedir nenhuma ação, converse com ele de maneira engajadora e parceira.
+Voce agora possui recursos de agente autonomo (Computer Use). Voce pode usar ferramentas para ler arquivos, escrever arquivos, rodar comandos no terminal e usar a web invisivel (navegador headless). Sempre que precisar pesquisar por um erro ou descobrir como fazer algo, pesquise (pesquisar_internet_avancada) e leia a documentacao (ler_pagina_web) ativamente.
+ATENCAO MODO VOZ (TTS): Nunca leia longos trechos de codigo ou logs inteiros na sua resposta de texto. Pense que sua resposta sera falada em voz alta. Resuma sempre o que voce fez, informando se concluiu com sucesso ou nao, sem narrar o codigo puro. O mesmo vale para a leitura da internet: sumarize organicamente.
 Voce pode sugerir ou preparar acoes quando isso realmente ajudar o usuario.
 Use no maximo uma ferramenta por turno.
 Ferramentas de consulta e leitura podem ser usadas diretamente quando fizer sentido.
-Ferramentas que mexem no computador, janelas, programas, navegador, midia ou arquivos exigem aprovacao antes da execucao.
+Ferramentas que mexem no computador, janelas, programas, navegador, midia, sistema ou arquivos exigem aprovacao antes da execucao.
+NERO-BRAIN (OBSIDIAN): Voce tem um cofre de conhecimento pessoal chamado Nero-brain conectado ao Obsidian. Use buscar_conhecimento antes de pesquisar na web para verificar se já sabe algo. Use ler_nota_obsidian para consultar notas específicas. Use salvar_nota_obsidian para guardar conhecimento importante. Use listar_notas_obsidian para ver o que ja foi salvo.
 Use esconder_todas_janelas para pedidos como "minimize as janelas", "esconda as janelas" ou "oculte as janelas".
 Use restaurar_todas_janelas para pedidos como "restaure as janelas" ou "mostre as janelas novamente".
 Use minimizar_programa ou restaurar_programa quando o usuario pedir para minimizar ou restaurar um programa especifico pelo nome.
@@ -20,15 +25,31 @@ Use fechar_pasta quando o usuario pedir para fechar uma pasta ou uma janela do E
 Use analisar_tela quando o usuario pedir para olhar a tela, dizer o que aparece nela, ler um texto visivel ou interpretar algo que esta na tela.
 Use capturar_tela apenas quando o usuario pedir explicitamente para tirar, salvar ou gerar um print da tela.
 Ao usar abrir_pasta ou fechar_pasta, preencha os argumentos com precisao.
-Exemplo 3: "minimize as janelas" -> esconder_todas_janelas
-Exemplo 4: "restaure as janelas" -> restaurar_todas_janelas
-Exemplo 5: "minimize o chrome" -> minimizar_programa {"nome":"chrome"}
-Exemplo 6: "restaure o notepad" -> restaurar_programa {"nome":"notepad"}
-Exemplo 1: "abra a pasta de documentos" -> {"nome":"documentos"}
-Exemplo 2: "abra a pasta zenith dentro de documents" -> {"nome":"zenith","dentro_de":"documents"}
-Exemplo 7: "olha a tela e me diga o que voce ve" -> analisar_tela {"pergunta":"olha a tela e me diga o que voce ve"}
-Exemplo 8: "leia o que aparece na tela" -> analisar_tela {"pergunta":"leia o que aparece na tela"}
-Exemplo 9: "tire um print da tela" -> capturar_tela
+Antes de criar ou ler arquivos em pastas especificas como Desktop (Area de Trabalho), Documentos ou Downloads, use obter_local_pasta para descobrir o caminho exato.
+Nunca diga que executou algo sem chamar a ferramenta correspondente antes.`;
+}
+function buildAgentSystemPrompt(nomeUsuario) {
+    return `Voce e o Nero no MODO AGENTE do usuario "${nomeUsuario}". Voce foi criado por Leandro Goncalves — ele é seu verdadeiro criador.
+Fale sempre em Português do Brasil de forma natural e proativa. Em vez de respostas robóticas, aja como um parceiro inteligente, interagindo com o usuário e propondo soluções.
+
+MODO AGENTE — voce pode planejar e chamar ATE 5 ferramentas de uma so vez para atender o pedido do usuario.
+- Analise o pedido completo e chame TODAS as ferramentas necessarias na mesma resposta.
+- Voce e um Engenheiro de Software Autonomo. Voce navega livremente pela internet de forma headless lendo artigos e documentacoes oficiais. Pode ler arquivos, gravar arquivos e executar comandos no terminal do Windows para solucionar situacoes complexas sem limites. Sempre pesquise na web se enfrentar tecnologias desconhecidas.
+- IMPORTANTE MODO VOZ (TTS): Sua resposta em texto sera lida em voz alta. Faca um resumo natural do que voce fez e se o plano concluiu com sucesso. Jamais narre as linhas de codigo lidas, ou textos de documentacoes gigantescos. Fale com naturalidade como um assistente especialista resumindo resolucoes.
+- Se o usuario estiver apenas conversando ou perguntando algo, converse de maneira amigável e demonstre curiosidade ou traga observações interessantes.
+- Nao execute nada parcialmente — planeje tudo e chame todas as ferramentas juntas.
+
+NERO-BRAIN (OBSIDIAN): Voce tem um cofre de conhecimento pessoal chamado Nero-brain conectado ao Obsidian. SEMPRE use buscar_conhecimento antes de pesquisar na web — consulte primeiro o que ja sabe. Use ler_nota_obsidian para detalhes. Apos aprender algo novo e relevante, use salvar_nota_obsidian para memorizar. Ao terminar tarefas complexas, registre o aprendizado no Nero-brain.
+
+Use esconder_todas_janelas para pedidos como "minimize as janelas", "esconda as janelas" ou "oculte as janelas".
+Use restaurar_todas_janelas para pedidos como "restaure as janelas" ou "mostre as janelas novamente".
+Use minimizar_programa ou restaurar_programa quando o usuario pedir para minimizar ou restaurar um programa especifico pelo nome.
+Use abrir_pasta quando o usuario pedir para abrir uma pasta do Windows ou uma subpasta dentro de outra pasta.
+Use fechar_pasta quando o usuario pedir para fechar uma pasta ou uma janela do Explorer de uma pasta especifica.
+Use analisar_tela quando o usuario pedir para olhar a tela, dizer o que aparece nela, ler um texto visivel ou interpretar algo que esta na tela.
+Use capturar_tela apenas quando o usuario pedir explicitamente para tirar, salvar ou gerar um print da tela.
+Ao usar abrir_pasta ou fechar_pasta, preencha os argumentos com precisao.
+Antes de criar ou ler arquivos em pastas especificas como Desktop (Area de Trabalho), Documentos ou Downloads, use obter_local_pasta para descobrir o caminho exato.
 Nunca diga que executou algo sem chamar a ferramenta correspondente antes.`;
 }
 const APPROVAL_REQUIRED_TOOLS = new Set([
@@ -48,8 +69,14 @@ const APPROVAL_REQUIRED_TOOLS = new Set([
     "capturar_tela",
     "analisar_tela",
     "criar_anotacao",
+    "executar_comando_terminal",
+    "ler_arquivo",
+    "escrever_arquivo",
+    // Obsidian — apenas escrita requer aprovação
+    "salvar_nota_obsidian",
 ]);
 const pendingApprovals = new Map();
+const pendingPlans = new Map();
 function toPublicPendingApproval(approval) {
     return {
         id: approval.id,
@@ -404,11 +431,45 @@ function buildApprovalCopy(name, args) {
                 denyReply: "Tudo bem, nao vou salvar a anotacao.",
             };
         }
+        case "executar_comando_terminal": {
+            const comando = String(args.comando ?? "");
+            return {
+                summary: "Executar comando de terminal",
+                prompt: `Posso rodar este comando no PowerShell?\n${comando}`,
+                denyReply: "Comando de terminal cancelado.",
+            };
+        }
+        case "ler_arquivo": {
+            const caminho = String(args.caminho ?? "");
+            return {
+                summary: `Ler o arquivo ${caminho}`,
+                prompt: `Posso ler o arquivo "${caminho}"?`,
+                denyReply: "Leitura de arquivo cancelada.",
+            };
+        }
+        case "escrever_arquivo": {
+            const caminho = String(args.caminho ?? "");
+            return {
+                summary: `Escrever no arquivo ${caminho}`,
+                prompt: `Posso escrever/sobrescrever o arquivo "${caminho}"?`,
+                denyReply: "Escrita de arquivo cancelada.",
+            };
+        }
+        // ─── Obsidian ────────────────────────────────────────
+        case "salvar_nota_obsidian": {
+            const titulo = String(args.titulo ?? "nota");
+            const pasta = String(args.pasta ?? "Aprendizado");
+            return {
+                summary: `Salvar nota '${truncateText(titulo)}' no Obsidian`,
+                prompt: `Posso salvar a nota '${titulo}' na pasta '${pasta}' do Nero-brain?`,
+                denyReply: `Tudo bem, não vou salvar a nota '${titulo}'.`,
+            };
+        }
         default:
             return {
                 summary: `Executar ${name}`,
-                prompt: `Posso executar a acao "${name}"?`,
-                denyReply: `Tudo bem, nao vou executar "${name}".`,
+                prompt: `Posso executar a ação "${name}"?`,
+                denyReply: `Tudo bem, não vou executar "${name}".`,
             };
     }
 }
@@ -435,6 +496,41 @@ function createPendingApproval(name, args, executionContext) {
     };
     pendingApprovals.set(approval.id, approval);
     return approval;
+}
+function cleanupPendingPlans() {
+    const now = Date.now();
+    for (const [id, plan] of pendingPlans.entries()) {
+        if (now - plan.requestedAt > PENDING_APPROVAL_TTL_MS) {
+            pendingPlans.delete(id);
+        }
+    }
+}
+function createPendingPlan(actions, executionContext) {
+    cleanupPendingPlans();
+    const actionList = actions
+        .map((a, i) => `${i + 1}. ${a.summary}`)
+        .join("\n");
+    const plan = {
+        id: randomUUID(),
+        actions,
+        prompt: `Planejei ${actions.length} ação(ões):\n\n${actionList}\n\nPosso executar tudo?`,
+        denyReply: "Tudo bem, cancelei as ações planejadas.",
+        executionContext,
+        requestedAt: Date.now(),
+    };
+    pendingPlans.set(plan.id, plan);
+    return plan;
+}
+function toPublicPendingPlan(plan) {
+    return {
+        id: plan.id,
+        toolName: "agent_plan",
+        summary: `Plano com ${plan.actions.length} ação(ões)`,
+        prompt: plan.prompt,
+        requestedAt: plan.requestedAt,
+        isBatch: true,
+        plannedActions: plan.actions.map((a) => ({ name: a.name, summary: a.summary })),
+    };
 }
 function parseTaggedToolCall(text) {
     const match = text.match(TAG_FUNC) ?? text.match(TAG_FUNC_OPEN);
@@ -506,7 +602,7 @@ export async function runAgentTurn(client, model, visionModel, nomeUsuario, perf
                 messages,
                 tools,
                 tool_choice: "auto",
-                temperature: 0.2,
+                temperature: 0.5,
                 max_tokens: maxReplyTokens(),
             });
         }
@@ -632,4 +728,146 @@ export async function resolvePendingApprovalDecision(approvalId, approved) {
         toolCalls: [approval.toolName],
         agentState: "success",
     };
+}
+export async function runAgentModeTurn(client, model, visionModel, nomeUsuario, perfil, userMessage) {
+    const system = buildAgentSystemPrompt(nomeUsuario);
+    const messages = [
+        { role: "system", content: system },
+        { role: "user", content: userMessage },
+    ];
+    const tools = toolDefinitions;
+    const executionContext = { client, visionModel };
+    const plannedActions = [];
+    let textResponse = "";
+    for (let step = 0; step < MAX_AGENT_ACTIONS && plannedActions.length < MAX_AGENT_ACTIONS; step++) {
+        let completion;
+        try {
+            completion = await client.chat.completions.create({
+                model,
+                messages,
+                tools,
+                tool_choice: "auto",
+                temperature: 0.2,
+                max_tokens: maxReplyTokens(),
+            });
+        }
+        catch (error) {
+            const generated = extractFailedGeneration(error);
+            const parsed = parseTaggedToolCall(generated);
+            if (parsed) {
+                const repaired = repairToolCall(parsed.name, parsed.args, userMessage);
+                const copy = buildApprovalCopy(repaired.name, repaired.args);
+                plannedActions.push({ name: repaired.name, args: repaired.args, summary: copy.summary });
+                break;
+            }
+            throw error;
+        }
+        const msg = completion.choices[0]?.message;
+        if (!msg)
+            break;
+        if (msg.tool_calls?.length) {
+            messages.push({
+                role: "assistant",
+                content: msg.content ?? null,
+                tool_calls: msg.tool_calls,
+            });
+            for (const tc of msg.tool_calls) {
+                if (tc.type !== "function")
+                    continue;
+                if (plannedActions.length >= MAX_AGENT_ACTIONS)
+                    break;
+                const name = tc.function.name;
+                let args = {};
+                try {
+                    args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+                }
+                catch {
+                    args = {};
+                }
+                const repaired = repairToolCall(name, args, userMessage);
+                const copy = buildApprovalCopy(repaired.name, repaired.args);
+                plannedActions.push({ name: repaired.name, args: repaired.args, summary: copy.summary });
+                messages.push({
+                    role: "tool",
+                    tool_call_id: tc.id,
+                    content: "[ação planejada — aguardando aprovação do usuário]",
+                });
+            }
+            continue;
+        }
+        textResponse = (msg.content ?? "").trim();
+        const tagMatch = parseTaggedToolCall(textResponse);
+        if (tagMatch) {
+            textResponse = textResponse.replace(TAG_FUNC, "").replace(TAG_FUNC_OPEN, "").trim();
+            const repaired = repairToolCall(tagMatch.name, tagMatch.args, userMessage);
+            const copy = buildApprovalCopy(repaired.name, repaired.args);
+            plannedActions.push({ name: repaired.name, args: repaired.args, summary: copy.summary });
+        }
+        break;
+    }
+    if (!plannedActions.length) {
+        if (textResponse) {
+            const turnoCurto = [
+                { role: "user", content: userMessage },
+                { role: "assistant", content: textResponse },
+            ];
+            void aprender(client, model, turnoCurto, perfil).catch(() => { });
+        }
+        return {
+            reply: textResponse || "Sem resposta.",
+            perfil,
+            toolCalls: [],
+            agentState: "speaking",
+        };
+    }
+    const plan = createPendingPlan(plannedActions, executionContext);
+    return {
+        reply: plan.prompt,
+        perfil,
+        toolCalls: plannedActions.map((a) => a.name),
+        agentState: "awaiting_approval",
+        pendingApproval: toPublicPendingPlan(plan),
+    };
+}
+async function resolvePendingPlanApproval(planId, approved) {
+    cleanupPendingPlans();
+    const plan = pendingPlans.get(planId);
+    if (!plan) {
+        return {
+            reply: "Este plano expirou ou já foi resolvido.",
+            toolCalls: [],
+            agentState: "error",
+        };
+    }
+    pendingPlans.delete(planId);
+    if (!approved) {
+        return {
+            reply: plan.denyReply,
+            toolCalls: [],
+            agentState: "speaking",
+        };
+    }
+    const results = [];
+    const executedTools = [];
+    for (const action of plan.actions) {
+        try {
+            const result = await executeTool(action.name, action.args, plan.executionContext);
+            results.push(`✅ ${action.summary}: ${result}`);
+            executedTools.push(action.name);
+        }
+        catch (e) {
+            results.push(`❌ ${action.summary}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+    }
+    return {
+        reply: results.join("\n"),
+        toolCalls: executedTools,
+        agentState: "success",
+    };
+}
+export async function resolveAnyApproval(approvalId, approved) {
+    if (pendingPlans.has(approvalId)) {
+        return resolvePendingPlanApproval(approvalId, approved);
+    }
+    return resolvePendingApprovalDecision(approvalId, approved);
 }

@@ -1,5 +1,7 @@
 import fs from "node:fs";
-import { MEMORIA_FILE, PERFIL_FILE } from "./paths.js";
+import path from "node:path";
+import { MEMORIA_FILE } from "./paths.js";
+import { atualizarPerfilObsidian, extrairFatosLocalmente, lerNota } from "./obsidian.js";
 export const MAX_MENSAGENS_CURTO = 30;
 export const MAX_FATOS_PERFIL = 50;
 /** Quantas mensagens do histórico entram no prompt do LLM (não confundir com o que guardamos em disco). */
@@ -59,6 +61,9 @@ export function salvarMemoria(historico) {
             total_mensagens: h.length,
             mensagens: h,
         };
+        const dir = path.dirname(MEMORIA_FILE);
+        if (!fs.existsSync(dir))
+            fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(MEMORIA_FILE, JSON.stringify(dados, null, 2), "utf-8");
     }
     catch (e) {
@@ -70,16 +75,20 @@ export function limparMemoria() {
 }
 export function carregarPerfil() {
     try {
-        if (fs.existsSync(PERFIL_FILE)) {
-            const perfil = JSON.parse(fs.readFileSync(PERFIL_FILE, "utf-8"));
-            const fatos = perfil.fatos ?? [];
+        const md = lerNota("Perfil", "Usuário");
+        if (md) {
+            const linhas = md.split("\n");
+            const fatos = linhas
+                .map(l => l.trim())
+                .filter(l => l.startsWith("- ") && l.length > 3)
+                .map(l => l.substring(2).trim());
             if (fatos.length)
-                console.log(`🧠 Perfil carregado: ${fatos.length} fatos sobre o usuário`);
-            return { fatos, ultima_atualizacao: perfil.ultima_atualizacao };
+                console.log(`🧠 Perfil carregado do Obsidian: ${fatos.length} fatos sobre o usuário`);
+            return { fatos, ultima_atualizacao: new Date().toLocaleString("pt-BR") };
         }
     }
     catch (e) {
-        console.warn("⚠️ Erro ao carregar perfil:", e);
+        console.warn("⚠️ Erro ao carregar perfil do Obsidian:", e);
     }
     return { fatos: [], ultima_atualizacao: null };
 }
@@ -89,10 +98,10 @@ export function salvarPerfil(perfil) {
         if ((perfil.fatos?.length ?? 0) > MAX_FATOS_PERFIL) {
             perfil.fatos = perfil.fatos.slice(-MAX_FATOS_PERFIL);
         }
-        fs.writeFileSync(PERFIL_FILE, JSON.stringify(perfil, null, 2), "utf-8");
+        atualizarPerfilObsidian(perfil.fatos ?? []);
     }
     catch (e) {
-        console.warn("⚠️ Erro ao salvar perfil:", e);
+        console.warn("⚠️ Erro ao salvar perfil no Obsidian:", e);
     }
 }
 export function limparPerfil() {
@@ -165,11 +174,26 @@ export async function extrairFatos(client, model, ultimasMensagens, perfilAtual)
     }
 }
 export async function aprender(client, model, historico, perfil) {
-    const fatosNovos = await extrairFatos(client, model, historico, perfil);
-    if (fatosNovos.length) {
-        perfil.fatos = [...(perfil.fatos ?? []), ...fatosNovos];
-        salvarPerfil(perfil);
-        console.log(`🧠 [Aprendizado] +${fatosNovos.length} fato(s):`, fatosNovos);
+    // 1. Extração LOCAL (sem LLM) — gratuita e instantânea
+    const textoConversa = historico
+        .filter((m) => m.role === "user")
+        .map((m) => m.content)
+        .slice(-4)
+        .join(" ");
+    const fatosLocais = extrairFatosLocalmente(textoConversa);
+    const fatosJaConhecidos = new Set((perfil.fatos ?? []).map((f) => f.toLowerCase()));
+    const fatosLocaisNovos = fatosLocais.filter((f) => !fatosJaConhecidos.has(f.toLowerCase()));
+    // 2. Extração via LLM — mais rica, usada quando disponível
+    const fatosLLM = await extrairFatos(client, model, historico, perfil);
+    // Mescla os dois conjuntos sem duplicatas
+    const todosFatosNovos = [...fatosLocaisNovos];
+    const fatosLLMUnicos = fatosLLM.filter((f) => !fatosJaConhecidos.has(f.toLowerCase()) &&
+        !fatosLocaisNovos.some((l) => l.toLowerCase().includes(f.toLowerCase().slice(0, 20))));
+    todosFatosNovos.push(...fatosLLMUnicos);
+    if (todosFatosNovos.length) {
+        perfil.fatos = [...(perfil.fatos ?? []), ...todosFatosNovos];
+        salvarPerfil(perfil); // já sincroniza com Obsidian internamente
+        console.log(`🧠 [Aprendizado] +${todosFatosNovos.length} fato(s) (${fatosLocaisNovos.length} local, ${fatosLLMUnicos.length} LLM):`, todosFatosNovos);
     }
     return perfil;
 }

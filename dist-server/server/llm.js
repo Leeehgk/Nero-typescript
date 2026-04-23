@@ -3,6 +3,9 @@ export function getModel(provider) {
     if (provider === "groq") {
         return process.env.GROQ_MODEL ?? "llama-3.1-8b-instant";
     }
+    if (provider === "qwen") {
+        return process.env.OPENAI_MODEL ?? "qwen/qwen3.6-plus:free";
+    }
     return process.env.LOCAL_LM_MODEL ?? "local-model";
 }
 /** Modelo por pedido (UI) ou .env */
@@ -12,6 +15,10 @@ export function resolveModel(provider, body) {
         const m = typeof b.groqModel === "string" ? b.groqModel.trim() : "";
         return m || process.env.GROQ_MODEL || "llama-3.1-8b-instant";
     }
+    if (provider === "qwen") {
+        const m = typeof b.qwenModel === "string" ? b.qwenModel.trim() : "";
+        return m || process.env.OPENAI_MODEL || "qwen/qwen3.6-plus:free";
+    }
     const m = typeof b.localModel === "string" ? b.localModel.trim() : "";
     return m || process.env.LOCAL_LM_MODEL || "local-model";
 }
@@ -19,6 +26,10 @@ export function resolveVisionModel(provider, fallbackModel) {
     if (provider === "groq") {
         const model = process.env.GROQ_VISION_MODEL?.trim();
         return model || fallbackModel;
+    }
+    // Qwen via OpenRouter usa o mesmo modelo como fallback (sem vision dedicado por enquanto)
+    if (provider === "qwen") {
+        return fallbackModel;
     }
     const model = process.env.LOCAL_VISION_MODEL?.trim();
     return model || fallbackModel;
@@ -34,12 +45,27 @@ export function getClient(provider) {
             apiKey: key,
         });
     }
+    if (provider === "qwen") {
+        const baseURL = process.env.OPENAI_BASE_URL?.trim();
+        const apiKey = process.env.OPENAI_API_KEY?.trim();
+        if (!baseURL || !apiKey) {
+            throw new Error("OPENAI_BASE_URL e OPENAI_API_KEY precisam estar definidas no .env para usar Qwen");
+        }
+        return new OpenAI({
+            baseURL,
+            apiKey,
+        });
+    }
     return new OpenAI({
         baseURL: process.env.LOCAL_LM_URL ?? "http://127.0.0.1:1234/v1",
-        apiKey: process.env.OPENAI_API_KEY ?? "lm-studio",
+        apiKey: "lm-studio",
     });
 }
 export function parseProvider(body) {
     const p = body?.provider;
-    return p === "groq" ? "groq" : "local";
+    if (p === "groq")
+        return "groq";
+    if (p === "qwen")
+        return "qwen";
+    return "local";
 }

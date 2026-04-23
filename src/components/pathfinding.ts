@@ -56,8 +56,8 @@ export function getOccupiedTiles(item: FurnitureItem): AgentGrid[] {
       widthDef = 0.5; depthDef = 0.5; break;
     case "mirror":
       widthDef = 1.0; depthDef = 0.1; break;
-    case "statue":
-      widthDef = 0.6; depthDef = 0.6; break;
+    case "snake":
+      widthDef = 0.8; depthDef = 0.8; break;
     case "fridge":
       widthDef = 1.0; depthDef = 0.9; break;
     case "fireplace":

@@ -8,6 +8,8 @@ import http from "node:http";
 import open from "open";
 import { ANOTACOES_FILE, PRINTS_DIR } from "./paths.js";
 import { VK, enviarTeclaMidiaVirtualKey } from "./winkeys.js";
+import { lerPaginaWebComoMarkdown, pesquisarDuckDuckGoNodeless } from "./browser.js";
+import { lerNota, salvarNota, listarNotas, buscarNoCofre } from "./obsidian.js";
 const execFileAsync = promisify(execFile);
 async function httpGetText(url, timeoutMs = 8000) {
     return new Promise((resolve, reject) => {
@@ -268,12 +270,184 @@ export const toolDefinitions = [
             parameters: { type: "object", properties: {} },
         },
     },
+    {
+        type: "function",
+        function: {
+            name: "executar_comando_terminal",
+            description: "Executa um comando no terminal (Powershell). Use para automação do sistema profundo, instalação, gerenciamento de SO, ou deploy.",
+            parameters: {
+                type: "object",
+                properties: { comando: { type: "string" } },
+                required: ["comando"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "ler_arquivo",
+            description: "Retorna o conteúdo em texto de um arquivo.",
+            parameters: {
+                type: "object",
+                properties: { caminho: { type: "string" } },
+                required: ["caminho"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "escrever_arquivo",
+            description: "Grava conteúdo em texto num arquivo (sobrescreve se existir).",
+            parameters: {
+                type: "object",
+                properties: {
+                    caminho: { type: "string" },
+                    conteudo: { type: "string" },
+                },
+                required: ["caminho", "conteudo"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "obter_local_pasta",
+            description: "Obtem o caminho absoluto de uma pasta do sistema do usuario (ex: Desktop, Documentos, Downloads). Use isso ANTES de criar ou ler arquivos em pastas padrão para não errar o caminho.",
+            parameters: {
+                type: "object",
+                properties: { pasta: { type: "string", description: "Nome da pasta. Ex: Desktop, Documentos, Downloads." } },
+                required: ["pasta"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "pesquisar_internet_avancada",
+            description: "Pesquisa no buscador da web usando um navegador headless invisivel, ignora bloqueios e traz os links.",
+            parameters: {
+                type: "object",
+                properties: { query: { type: "string" } },
+                required: ["query"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "ler_pagina_web",
+            description: "Acessa uma URL usando navegador invisivel e extrai o conteudo principal da pagina varrendo o HTML direto pra formato Markdown. Extremamente util para ler documentacoes e stackoverflow.",
+            parameters: {
+                type: "object",
+                properties: { url: { type: "string" } },
+                required: ["url"],
+            },
+        },
+    },
+    // ─── Obsidian / Nero-brain ────────────────────────────────────────
+    {
+        type: "function",
+        function: {
+            name: "ler_nota_obsidian",
+            description: "Lê uma nota do Nero-brain (Obsidian). Use para consultar conhecimento já salvo, o perfil do usuário ou o histórico de conversas. Parâmetro pasta: nome da subpasta (ex: Perfil, Conversas, Base de Conhecimento). Parâmetro titulo: nome da nota sem extensao.",
+            parameters: {
+                type: "object",
+                properties: {
+                    pasta: { type: "string", description: "Subpasta do Nero-brain: Perfil, Conversas, Base de Conhecimento, Aprendizado" },
+                    titulo: { type: "string", description: "Título da nota sem a extensão .md" },
+                },
+                required: ["pasta", "titulo"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "salvar_nota_obsidian",
+            description: "Cria ou atualiza uma nota no Nero-brain (Obsidian). Use para salvar aprendizados, notas de pesquisa, listas ou qualquer informação que deva ser lembrada. Parâmetro pasta: subpasta onde salvar. Parâmetro titulo: título da nota. Parâmetro conteudo: texto da nota em Markdown.",
+            parameters: {
+                type: "object",
+                properties: {
+                    pasta: { type: "string", description: "Subpasta: Aprendizado, Base de Conhecimento, Perfil, ou nome personalizado" },
+                    titulo: { type: "string", description: "Título da nota" },
+                    conteudo: { type: "string", description: "Conteúdo da nota em Markdown" },
+                },
+                required: ["pasta", "titulo", "conteudo"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "listar_notas_obsidian",
+            description: "Lista todas as notas de uma pasta do Nero-brain. Use para ver o que já está salvo no Obsidian.",
+            parameters: {
+                type: "object",
+                properties: {
+                    pasta: { type: "string", description: "Subpasta do Nero-brain: Perfil, Conversas, Base de Conhecimento, Aprendizado" },
+                },
+                required: ["pasta"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "buscar_conhecimento",
+            description: "Busca por um termo em todo o Nero-brain. Útil para encontrar notas relacionadas a um tópico antes de pesquisar na internet.",
+            parameters: {
+                type: "object",
+                properties: {
+                    query: { type: "string", description: "Termo ou frase para buscar no Nero-brain" },
+                },
+                required: ["query"],
+            },
+        },
+    },
 ];
 function buildPrintPath() {
     if (!fs.existsSync(PRINTS_DIR))
         fs.mkdirSync(PRINTS_DIR, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     return path.join(PRINTS_DIR, `Print_${stamp}.png`);
+}
+async function smartResolveWindowsPath(p) {
+    if (os.platform() !== "win32")
+        return path.resolve(p);
+    const parts = p.split(/[\\/]+/);
+    const knownFoldersMap = {
+        "desktop": "desktop",
+        "area de trabalho": "desktop",
+        "área de trabalho": "desktop",
+        "downloads": "downloads",
+        "documentos": "documentos",
+        "documents": "documentos",
+        "imagens": "imagens",
+        "pictures": "imagens",
+        "vídeos": "videos",
+        "videos": "videos",
+        "músicas": "musicas",
+        "musicas": "musicas"
+    };
+    for (let i = 0; i < parts.length; i++) {
+        const partLower = parts[i].toLowerCase();
+        if (knownFoldersMap[partLower]) {
+            const isBase = i <= 3;
+            if (isBase) {
+                const realBasePath = await resolveWindowsKnownFolder(knownFoldersMap[partLower]);
+                if (realBasePath) {
+                    const remainingParts = parts.slice(i + 1);
+                    return path.join(realBasePath, ...remainingParts);
+                }
+            }
+        }
+    }
+    if (parts.length > 0 && parts[0] === "~") {
+        const home = os.homedir();
+        return path.join(home, ...parts.slice(1));
+    }
+    return path.resolve(p);
 }
 export async function capturarTelaAtual() {
     const outPath = buildPrintPath();
@@ -565,8 +739,103 @@ $g.Dispose(); $bmp.Dispose()
         }
         case "obter_musica_atual":
             return await obterMusicaAtualWindows();
+        case "executar_comando_terminal": {
+            const comando = String(args.comando ?? "");
+            try {
+                const { stdout, stderr } = await execFileAsync("powershell", ["-NoProfile", "-Command", comando], {
+                    encoding: "utf-8",
+                    windowsHide: true,
+                    timeout: 45000
+                });
+                const output = stdout.trim() || stderr.trim() || "Comando executado sem retorno visual.";
+                return `Comando executado:\n${output.slice(0, 1500)}`;
+            }
+            catch (e) {
+                return `Erro no comando: ${e instanceof Error ? e.message : String(e)}`;
+            }
+        }
+        case "ler_arquivo": {
+            let caminho = String(args.caminho ?? "");
+            try {
+                caminho = await smartResolveWindowsPath(caminho);
+                const txt = fs.readFileSync(path.resolve(caminho), "utf-8");
+                return `Conteúdo de ${path.basename(caminho)}:\n${txt.slice(0, 3000)}`;
+            }
+            catch (e) {
+                return `Erro ao ler arquivo: ${e instanceof Error ? e.message : String(e)}`;
+            }
+        }
+        case "escrever_arquivo": {
+            let caminho = String(args.caminho ?? "");
+            const conteudo = String(args.conteudo ?? "");
+            try {
+                caminho = await smartResolveWindowsPath(caminho);
+                fs.mkdirSync(path.dirname(path.resolve(caminho)), { recursive: true });
+                fs.writeFileSync(path.resolve(caminho), conteudo, "utf-8");
+                return `Arquivo ${path.basename(caminho)} gravado com sucesso.`;
+            }
+            catch (e) {
+                return `Erro ao escrever arquivo: ${e instanceof Error ? e.message : String(e)}`;
+            }
+        }
+        case "obter_local_pasta": {
+            const pasta = String(args.pasta ?? "");
+            const found = await resolveWindowsKnownFolder(pasta);
+            if (found) {
+                return `O caminho exato da pasta '${pasta}' é: ${found}`;
+            }
+            return `Não foi possível encontrar o caminho padrão para '${pasta}'. Talvez você precise buscar manualmente.`;
+        }
+        case "pesquisar_internet_avancada": {
+            const query = String(args.query ?? "");
+            return await pesquisarDuckDuckGoNodeless(query);
+        }
+        case "ler_pagina_web": {
+            const url = String(args.url ?? "");
+            return await lerPaginaWebComoMarkdown(url);
+        }
+        // ─── Obsidian / Nero-brain ────────────────────────────────────────
+        case "ler_nota_obsidian": {
+            const pasta = String(args.pasta ?? "");
+            const titulo = String(args.titulo ?? "");
+            const conteudo = lerNota(pasta, titulo);
+            if (!conteudo)
+                return `Nota '${titulo}' não encontrada em ${pasta}.`;
+            return `📄 **${pasta}/${titulo}**\n\n${conteudo.slice(0, 3000)}`;
+        }
+        case "salvar_nota_obsidian": {
+            const pasta = String(args.pasta ?? "");
+            const titulo = String(args.titulo ?? "");
+            const conteudo = String(args.conteudo ?? "");
+            if (!pasta || !titulo || !conteudo) {
+                return "Erro: pasta, titulo e conteudo são obrigatórios.";
+            }
+            try {
+                const arquivo = salvarNota(pasta, titulo, conteudo, {
+                    criado: new Date().toISOString().split("T")[0],
+                    tipo: "nota",
+                    tags: ["nero", pasta.toLowerCase()],
+                });
+                return `✅ Nota '${titulo}' salva em ${pasta}. Você pode ver no Obsidian (${arquivo}).`;
+            }
+            catch (e) {
+                return `Erro ao salvar nota: ${e instanceof Error ? e.message : String(e)}`;
+            }
+        }
+        case "listar_notas_obsidian": {
+            const pasta = String(args.pasta ?? "");
+            const notas = listarNotas(pasta);
+            if (!notas.length)
+                return `Nenhuma nota encontrada em '${pasta}'.`;
+            return `📂 **${pasta}** (${notas.length} nota(s)):\n\n${notas.map((n) => `- [[${n}]]`).join("\n")}`;
+        }
+        case "buscar_conhecimento": {
+            const query = String(args.query ?? "");
+            return buscarNoCofre(query);
+        }
         default:
-            return "Ferramenta desconhecida.";
+            console.warn(`⚠️ Ferramenta solicitada pelo modelo não existe no código: ${name}`);
+            return `Ferramenta desconhecida: ${name}`;
     }
 }
 function normalizeFolderName(value) {

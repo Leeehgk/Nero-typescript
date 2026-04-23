@@ -520,18 +520,200 @@ export function Mirror({ id, position, rotation }: { id: string; position: [numb
   );
 }
 
-export function Statue({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
+export function Snake({ id, position, rotation }: { id: string; position: [number, number, number]; rotation?: [number, number, number] }) {
   const events = useFurnitureEvents(id, rotation);
+
+  // Paleta de cores: estátua de pedra escura com veias de bronze
+  const stone = "#4a4040";
+  const stoneDark = "#2d2828";
+  const bronze = "#8b6914";
+  const bronzeLight = "#c9a227";
+  const snakeGreen = "#1a6b1a";
+  const snakeGreenDark = "#0d3d0d";
+  const snakeGreenLight = "#2e8b2e";
+  const snakeScale = "#155215";
+  const eyeWhite = "#f0f0e8";
+  const eyeIris = "#d4a017";   // íris dourada
+  const eyePupil = "#0a0a0a";
+  const tonguePink = "#cc1111";
+
   return (
     <group position={position} rotation={rotation} {...events}>
-      <mesh position={[0, 0.15, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.6, 0.3, 0.6]} />
-        <meshStandardMaterial color="#212121" roughness={0.8} />
+
+      {/* ── PEDESTAL DUPLO ── */}
+      {/* Plinto inferior largo */}
+      <mesh position={[0, 0.1, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.6, 0.2, 1.6]} />
+        <meshStandardMaterial color={stoneDark} roughness={0.9} metalness={0.05} />
       </mesh>
-      <mesh position={[0, 0.8, 0]} castShadow>
-        <cylinderGeometry args={[0.2, 0.4, 1.2, 6]} />
-        <meshStandardMaterial color="#cfd8dc" metalness={0.3} roughness={0.3} />
+      {/* Plinto superior médio */}
+      <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.2, 0.2, 1.2]} />
+        <meshStandardMaterial color={stone} roughness={0.85} metalness={0.05} />
       </mesh>
+      {/* Coluna central do pedestal */}
+      <mesh position={[0, 0.88, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.48, 0.6, 1.16, 12]} />
+        <meshStandardMaterial color={stone} roughness={0.8} metalness={0.08} />
+      </mesh>
+      {/* Anel decorativo de bronze no topo do pedestal */}
+      <mesh position={[0, 1.47, 0]} castShadow>
+        <torusGeometry args={[0.52, 0.045, 8, 24]} />
+        <meshStandardMaterial color={bronzeLight} metalness={0.75} roughness={0.25} />
+      </mesh>
+      {/* Topo do pedestal (base da cobra) */}
+      <mesh position={[0, 1.56, 0]} castShadow>
+        <cylinderGeometry args={[0.55, 0.5, 0.18, 12]} />
+        <meshStandardMaterial color={stoneDark} roughness={0.8} />
+      </mesh>
+
+      {/* ── CORPO DA COBRA – enrolado em S grande ── */}
+      {/* Anel base do enrolamento (maior) */}
+      <mesh position={[0, 1.82, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[0.7, 0.18, 16, 80]} />
+        <meshStandardMaterial color={snakeGreen} roughness={0.55} metalness={0.08} />
+      </mesh>
+      {/* Faixa de escamas – anel base */}
+      <mesh position={[0, 1.82, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.7, 0.19, 8, 80]} />
+        <meshStandardMaterial color={snakeScale} roughness={0.7} transparent opacity={0.35} />
+      </mesh>
+
+      {/* Anel do meio (mais estreito, inclinado) */}
+      <mesh position={[0.15, 2.4, 0.1]} rotation={[Math.PI / 2.4, 0.2, Math.PI / 6]} castShadow>
+        <torusGeometry args={[0.5, 0.15, 16, 64]} />
+        <meshStandardMaterial color={snakeGreenDark} roughness={0.6} metalness={0.08} />
+      </mesh>
+
+      {/* Terceiro anel (sobe para o pescoço) */}
+      <mesh position={[-0.1, 2.95, -0.05]} rotation={[Math.PI / 3, -0.15, -Math.PI / 8]} castShadow>
+        <torusGeometry args={[0.38, 0.13, 14, 56]} />
+        <meshStandardMaterial color={snakeGreenLight} roughness={0.5} metalness={0.1} />
+      </mesh>
+
+      {/* Pescoço (cilindro conectando corpo à cabeça) */}
+      <mesh position={[0, 3.32, 0.18]} rotation={[0.4, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.16, 0.22, 0.55, 10]} />
+        <meshStandardMaterial color={snakeGreen} roughness={0.55} />
+      </mesh>
+
+      {/* ── CAPUZ DE NAJA (cobra-real aberta) ── */}
+      {/* Capuz esquerdo */}
+      <mesh position={[-0.35, 3.65, 0.3]} rotation={[0.3, 0.5, -Math.PI / 10]} castShadow>
+        <torusGeometry args={[0.28, 0.065, 8, 32, Math.PI]} />
+        <meshStandardMaterial color={snakeGreenDark} roughness={0.65} />
+      </mesh>
+      {/* Capuz direito */}
+      <mesh position={[0.35, 3.65, 0.3]} rotation={[0.3, -0.5, Math.PI / 10]} castShadow>
+        <torusGeometry args={[0.28, 0.065, 8, 32, Math.PI]} />
+        <meshStandardMaterial color={snakeGreenDark} roughness={0.65} />
+      </mesh>
+      {/* Membrana do capuz */}
+      <mesh position={[0, 3.68, 0.22]} rotation={[0.3, 0, 0]} castShadow>
+        <planeGeometry args={[0.72, 0.48]} />
+        <meshStandardMaterial color={snakeGreen} roughness={0.75} transparent opacity={0.88} side={2} />
+      </mesh>
+      {/* Padrão do capuz (marca decorativa) */}
+      <mesh position={[0, 3.68, 0.225]} rotation={[0.3, 0, 0]}>
+        <planeGeometry args={[0.35, 0.28]} />
+        <meshStandardMaterial color={bronzeLight} metalness={0.5} roughness={0.5} transparent opacity={0.55} side={2} />
+      </mesh>
+
+      {/* ── CABEÇA DA COBRA ── */}
+      {/* Crânio principal */}
+      <mesh position={[0, 3.82, 0.35]} castShadow>
+        <sphereGeometry args={[0.34, 16, 14]} />
+        <meshStandardMaterial color={snakeGreenDark} roughness={0.5} metalness={0.1} />
+      </mesh>
+      {/* Focinho / maxilar inferior (alongado) */}
+      <mesh position={[0, 3.72, 0.62]} rotation={[0.35, 0, 0]} castShadow>
+        <boxGeometry args={[0.26, 0.15, 0.32]} />
+        <meshStandardMaterial color={snakeGreen} roughness={0.55} />
+      </mesh>
+      {/* Ponta do focinho */}
+      <mesh position={[0, 3.68, 0.77]} castShadow>
+        <sphereGeometry args={[0.11, 10, 8]} />
+        <meshStandardMaterial color={snakeGreenLight} roughness={0.5} />
+      </mesh>
+      {/* Narinas */}
+      <mesh position={[-0.06, 3.71, 0.79]}>
+        <sphereGeometry args={[0.025, 6, 6]} />
+        <meshStandardMaterial color={stoneDark} />
+      </mesh>
+      <mesh position={[0.06, 3.71, 0.79]}>
+        <sphereGeometry args={[0.025, 6, 6]} />
+        <meshStandardMaterial color={stoneDark} />
+      </mesh>
+
+      {/* ── OLHOS ── */}
+      {/* Olho esquerdo – esclera */}
+      <mesh position={[-0.16, 3.87, 0.57]} castShadow>
+        <sphereGeometry args={[0.085, 12, 10]} />
+        <meshStandardMaterial color={eyeWhite} roughness={0.2} />
+      </mesh>
+      {/* Olho direito – esclera */}
+      <mesh position={[0.16, 3.87, 0.57]} castShadow>
+        <sphereGeometry args={[0.085, 12, 10]} />
+        <meshStandardMaterial color={eyeWhite} roughness={0.2} />
+      </mesh>
+      {/* Íris dourada esquerda */}
+      <mesh position={[-0.16, 3.87, 0.645]}>
+        <sphereGeometry args={[0.055, 10, 8]} />
+        <meshStandardMaterial color={eyeIris} metalness={0.6} roughness={0.2} emissive={eyeIris} emissiveIntensity={0.18} />
+      </mesh>
+      {/* Íris dourada direita */}
+      <mesh position={[0.16, 3.87, 0.645]}>
+        <sphereGeometry args={[0.055, 10, 8]} />
+        <meshStandardMaterial color={eyeIris} metalness={0.6} roughness={0.2} emissive={eyeIris} emissiveIntensity={0.18} />
+      </mesh>
+      {/* Pupila esquerda */}
+      <mesh position={[-0.16, 3.87, 0.695]}>
+        <sphereGeometry args={[0.025, 8, 6]} />
+        <meshStandardMaterial color={eyePupil} />
+      </mesh>
+      {/* Pupila direita */}
+      <mesh position={[0.16, 3.87, 0.695]}>
+        <sphereGeometry args={[0.025, 8, 6]} />
+        <meshStandardMaterial color={eyePupil} />
+      </mesh>
+
+      {/* ── LÍNGUA BÍFIDA ── */}
+      {/* Haste principal */}
+      <mesh position={[0, 3.63, 0.85]} rotation={[0.45, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.018, 0.018, 0.3, 6]} />
+        <meshStandardMaterial color={tonguePink} roughness={0.4} />
+      </mesh>
+      {/* Ponta esquerda */}
+      <mesh position={[-0.08, 3.56, 0.98]} rotation={[0.6, 0.25, 0.35]}>
+        <cylinderGeometry args={[0.012, 0.005, 0.2, 6]} />
+        <meshStandardMaterial color={tonguePink} roughness={0.4} />
+      </mesh>
+      {/* Ponta direita */}
+      <mesh position={[0.08, 3.56, 0.98]} rotation={[0.6, -0.25, -0.35]}>
+        <cylinderGeometry args={[0.012, 0.005, 0.2, 6]} />
+        <meshStandardMaterial color={tonguePink} roughness={0.4} />
+      </mesh>
+
+      {/* ── DETALHES DE ESCAMAS NOS ANÉIS ── */}
+      {/* Banda de escamas – anel base */}
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+        <mesh key={`scale-b-${i}`}
+          position={[
+            Math.cos((i / 8) * Math.PI * 2) * 0.72,
+            1.82,
+            Math.sin((i / 8) * Math.PI * 2) * 0.72,
+          ]}>
+          <sphereGeometry args={[0.055, 6, 5]} />
+          <meshStandardMaterial color={i % 2 === 0 ? snakeScale : snakeGreenLight} roughness={0.7} />
+        </mesh>
+      ))}
+
+      {/* ── INSCRIÇÃO BRONZE NA BASE ── */}
+      <mesh position={[0, 0.21, 0.81]}>
+        <planeGeometry args={[0.75, 0.1]} />
+        <meshStandardMaterial color={bronze} metalness={0.7} roughness={0.3} />
+      </mesh>
+
     </group>
   );
 }
@@ -765,7 +947,7 @@ export function HabboOfficeFurniture() {
           case "nightstand": return <Nightstand key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           case "bonsai": return <Bonsai key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           case "mirror": return <Mirror key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
-          case "statue": return <Statue key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
+          case "snake": return <Snake key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           case "wall_clock": return <WallClock key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           case "speaker": return <Speaker key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
           case "fridge": return <Fridge key={item.id} id={item.id} position={item.position} rotation={item.rotation} />;
